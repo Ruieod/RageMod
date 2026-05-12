@@ -1,0 +1,1 @@
+{"schemaVersion":1,"id":"ragemod","version":"1.0.0","name":"RAGE CLIENT","mixins":["ragemod.mixins.json"],"depends":{"fabricloader":">=0.15.0","minecraft":"1.21.4"},"entrypoints":{"client":["rage.Main"]}}
