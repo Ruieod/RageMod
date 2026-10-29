@@ -13,7 +13,11 @@
 | ESP | бокс, скелет по `HitBoxCollider[]`, полоска HP, дистанция, снаплайны, фильтры по команде/видимости |
 | Silent aim | правится сам хит-каст выстрела, камера не двигается. Два режима, см. ниже |
 | Visible aim | пишет сетевые кватернионы `eir` локального игрока, smooth/FOV/бон |
-| Меню | ImGui поверх `eglSwapBuffers`, вкладки ESP / AIMBOT / MISC / CONFIG, конфиг в JSON |
+| Auto fire | хук геттера кнопки: держать всегда или только когда цель в конусе, pulse для одиночных |
+| No recoil | гасим `RecoilState` в `WeaponContext` после пересчёта, `RecoilMult` слайдером |
+| Chams | материалы `OutlineMaterial`/`UntouchableMaterial` из `CharacterBindings` + render queue (видно через стены) |
+| Third person | камера отводится назад после кадрового тика, с упором в геометрию, плюс включение своей модели |
+| Меню | ImGui поверх `eglSwapBuffers`, вкладки ESP / AIMBOT / FIRE / MISC / CONFIG, конфиг в JSON |
 
 Ничего не включено на старте, кроме ESP.
 
@@ -45,9 +49,11 @@ ANDROID_NDK=/path/to/android-ndk-r27c ./build.sh
 | `jxy.vrsg(ref WeaponContext)` | `0x973A818` | выстрел — silent режим 0 |
 | `jxy.rxjx(ref WeaponContext, Span<Ray>)` | `0x9739FA4` | лучи хит-каста — silent режим 1 |
 | `ake.opmn()` | `0x949E8A0` | страховка на список игроков, если реестр мира развалится |
+| `znn.rpcp(string)` | `0x8D441BC` | геттер состояния кнопки по имени экшена — автострельба |
+| `vez.lhgb(ref WeaponContext, bool)` | `0x9731070` | пересчёт отдачи — no recoil |
 | `eglSwapBuffers` | GOT `libunity.so` | рендер меню и ESP |
 
-Прологи всех четырёх игровых целей в этой сборке PC-независимы (проверено дизасмом),
+Прологи всех шести игровых целей в этой сборке PC-независимы (проверено дизасмом),
 поэтому inline-хук — простой 16-байтный патч `ldr x16,#8 / br x16/ .quad`, без движка хуков.
 Если после патча игры пролог станет PC-зависимым, хук откажется ставиться и напишет в лог,
 а не испортит код.
@@ -61,6 +67,8 @@ ake  +0x70 -> ylw (hp 0x10, maxhp 0x14, armor 0x16)   ake +0x90 team   ake +0x28
 List<eur> -> элемент с klass->name == "jgi" -> +0x18 HitBoxCollider[]
 HitBoxCollider +0x20 HumanBodyBones, Component.get_transform -> позиция бона
 ios  +0x38 -> eir (+0x10 quat A, +0x20 quat B)
+jgi  +0x30 -> CharacterBindings (+0x38 CharacterRenderer, +0x50 Untouchable, +0x58 Outline)
+WeaponContext +0x40 RecoilContext.RecoilMult, +0x68 RecoilState (LastShotTime на +0x84 не трогаем)
 ```
 
 ## Что проверено, а что нет
@@ -72,7 +80,9 @@ ios  +0x38 -> eir (+0x10 quat A, +0x20 quat B)
   прямо в память;
 - `WeaponContext` не обфусцирован: `HitTransform` на `+0x10`;
 - слот `eglSwapBuffers` есть в `.rela.plt` libunity.so;
-- прологи хук-целей.
+- прологи хук-целей;
+- `CharacterBindings`, `WeaponContext`, `RecoilState`, `ButtonInput` не обфусцированы — поля и
+  их смещения взяты из дампа как есть.
 
 **Не проверял в игре** (дамп — это ELF установленной сборки, не рантайм):
 
@@ -82,7 +92,13 @@ ios  +0x38 -> eir (+0x10 quat A, +0x20 quat B)
 - смысл отдельных флагов `qdp` (видимость игрока по мнению игры) — поэтому видимость считаем
   своим `Physics.Linecast`, а не флагом;
 - что именно из двух кватернионов `eir` идёт на сервер — в меню выбор `quat A / B / both`;
-- порядок осей тача на конкретном девайсе.
+- порядок осей тача на конкретном девайсе;
+- имя input-экшена выстрела. Хук `znn.rpcp` логирует все имена, которые игра реально спрашивала,
+  вкладка FIRE показывает их кнопками — ткнул, и автострельба привязалась к нужному;
+- как выглядят chams с `OutlineMaterial`/`UntouchableMaterial` на SkinnedMeshRenderer. Если
+  получится каша — режим `render queue` без подмены материала даёт просто модель через стены;
+- на каком этапе кадра игра пересчитывает позицию камеры: третье лицо пишем после `ios.lxcq`,
+  если камера всё равно дёргается — точку перехвата надо сдвинуть на `nrl.LateTick` (`0x98C81B0`).
 
 ## Под новый патч игры
 

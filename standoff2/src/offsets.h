@@ -22,6 +22,12 @@ constexpr uintptr_t Transform_set_eulerAngles = 0x67F4378;
 constexpr uintptr_t Physics_Linecast          = 0x905A5A8; // bool(Vector3,Vector3,out RaycastHit,int mask)
 constexpr uintptr_t Player_get_position       = 0x9489018; // ake.xdzx() -> Vector3
 constexpr uintptr_t Player_get_rotation       = 0x948B514; // ake.ioiu() -> Quaternion
+constexpr uintptr_t Transform_set_position    = 0x67F1268;
+constexpr uintptr_t Renderer_get_sharedMaterial = 0x7613034;
+constexpr uintptr_t Renderer_set_material     = 0x75F2DE8;
+constexpr uintptr_t Renderer_set_enabled      = 0x7605850;
+constexpr uintptr_t Material_get_renderQueue  = 0x76027CC;
+constexpr uintptr_t Material_set_renderQueue  = 0x75FCB04;
 }
 
 // точки перехвата
@@ -30,6 +36,8 @@ constexpr uintptr_t CameraPart_tick  = 0xA0903F4; // ios.lxcq()        — ка�
 constexpr uintptr_t HitCast_fire     = 0x973A818; // jxy.vrsg(ref WeaponContext)
 constexpr uintptr_t HitCast_rays     = 0x9739FA4; // jxy.rxjx(ref WeaponContext, Span<Ray>)
 constexpr uintptr_t Player_update    = 0x949E8A0; // ake.opmn()        — fallback-сбор игроков
+constexpr uintptr_t Input_get_button = 0x8D441BC; // znn.rpcp(string) -> ButtonInput — автострельба
+constexpr uintptr_t Recoil_apply     = 0x9731070; // vez.lhgb(ref WeaponContext, bool) — отдача
 }
 
 // il2cpp runtime layout (из dump/il2cpp.h этого дампа)
@@ -41,6 +49,8 @@ constexpr uintptr_t Array_length   = 0x18; // max_length
 constexpr uintptr_t Array_data     = 0x20;
 constexpr uintptr_t List_items     = 0x10;
 constexpr uintptr_t List_size      = 0x18;
+constexpr uintptr_t String_length  = 0x10; // int
+constexpr uintptr_t String_chars   = 0x14; // utf-16
 }
 
 // поля игровых классов
@@ -79,6 +89,17 @@ constexpr uintptr_t jgi_gameobject = 0x10;
 constexpr uintptr_t jgi_hitboxes   = 0x18; // HitBoxCollider[]
 constexpr uintptr_t jgi_transform  = 0x20;
 constexpr uintptr_t jgi_animator   = 0x28;
+constexpr uintptr_t jgi_bindings   = 0x30; // CharacterBindings
+
+// CharacterBindings : MonoBehaviour (не обфусцирован)
+constexpr uintptr_t cb_bones            = 0x20;
+constexpr uintptr_t cb_tool             = 0x28; // GameObject
+constexpr uintptr_t cb_animator         = 0x30;
+constexpr uintptr_t cb_char_renderer    = 0x38; // SkinnedMeshRenderer
+constexpr uintptr_t cb_arms_renderer    = 0x40;
+constexpr uintptr_t cb_gloves_renderer  = 0x48;
+constexpr uintptr_t cb_untouchable_mat  = 0x50; // Material
+constexpr uintptr_t cb_outline_mat      = 0x58; // Material
 
 // HitBoxCollider : MonoBehaviour
 constexpr uintptr_t hbc_bone   = 0x20; // HitBox.bone (HumanBodyBones, int)
@@ -107,9 +128,19 @@ constexpr uintptr_t yjk_count      = 0x18; // int
 constexpr uintptr_t wctx_owner     = 0x00; // NetObjectId
 constexpr uintptr_t wctx_team      = 0x08; // byte
 constexpr uintptr_t wctx_hit_tf    = 0x10; // Transform — источник хит-рейкастов
+constexpr uintptr_t wctx_recoil_ctx = 0x40; // RecoilContext.RecoilMult (float)
 constexpr uintptr_t wctx_weapon    = 0x48; // qjf
 constexpr uintptr_t wctx_time      = 0x8C; // float
 constexpr uintptr_t wctx_was_hit   = 0x90; // bool
+
+// RecoilState внутри WeaponContext (+0x68)
+constexpr uintptr_t wctx_recoil          = 0x68;
+constexpr uintptr_t rst_progress         = 0x00;
+constexpr uintptr_t rst_prev_progress    = 0x04;
+constexpr uintptr_t rst_prev_point       = 0x08; // Vector2
+constexpr uintptr_t rst_point            = 0x10; // Vector2
+constexpr uintptr_t rst_approach_delta   = 0x18;
+constexpr uintptr_t rst_last_shot_time   = 0x1C; // не трогать: по нему считается темп стрельбы
 }
 
 // имена классов (обфусцированы, матчим по klass->name)

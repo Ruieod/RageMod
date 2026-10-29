@@ -63,5 +63,14 @@ void transform_set_euler(void* transform, const Vec3& euler);
 bool linecast(const Vec3& from, const Vec3& to, RaycastHit* hit, int layer_mask);
 Vec3 player_position(void* player);
 Quat player_rotation(void* player);
+void transform_set_position(void* transform, const Vec3& pos);
+void* renderer_shared_material(void* renderer);
+void renderer_set_material(void* renderer, void* material);
+void renderer_set_enabled(void* renderer, bool on);
+int material_render_queue(void* material);
+void material_set_render_queue(void* material, int queue);
+
+// managed string -> ascii (utf-16 с отбросом старшего байта), для имён input-экшенов
+int string_to_ascii(const void* str, char* out, int cap);
 
 } // namespace il2cpp

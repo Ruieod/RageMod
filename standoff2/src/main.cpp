@@ -27,7 +27,7 @@ void* init(void*) {
     ui::install();
     touch::start();
 
-    LOGI("RageMod up (hooks %d/4)", mods::installed_count());
+    LOGI("RageMod up (hooks %d/6)", mods::installed_count());
     return nullptr;
 }
 

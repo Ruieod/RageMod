@@ -28,6 +28,28 @@ struct Config {
     bool aim_team_check = true;
     int  aim_quat = 2;               // 1 = quat A, 2 = quat B, 3 = оба (visible aim)
 
+    // AUTO FIRE
+    bool autofire = false;
+    int  autofire_mode = 1;          // 0 = держать всегда, 1 = только когда цель в конусе
+    float autofire_fov = 3.f;        // градусы от центра экрана
+    bool autofire_pulse = false;     // дёргать press/release каждый кадр (для одиночных)
+    char fire_action[32] = "Fire";   // имя input-экшена выстрела, подбирается в MISC
+
+    // RECOIL
+    bool no_recoil = false;
+    float recoil_mult = 0.f;         // пишется в WeaponContext.RecoilContext.RecoilMult
+
+    // CHAMS
+    int  chams = 0;                  // 0 off, 1 render queue, 2 outline mat, 3 untouchable mat
+    int  chams_queue = 3600;         // чем выше, тем позже рисуется — видно через стены
+    bool chams_team_check = true;
+
+    // THIRD PERSON
+    bool third_person = false;
+    float tp_dist = 2.6f;
+    float tp_height = 0.35f;
+    bool tp_show_body = true;
+
     // MISC
     bool draw_fov = false;
     bool draw_debug = false;

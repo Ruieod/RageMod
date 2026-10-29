@@ -44,7 +44,8 @@ struct Frame {
     int entities_seen = 0;
 };
 
-void tick(void* camera_part);          // хук ios.lxcq
+void tick(void* camera_part);          // хук ios.lxcq, до оригинала
+void post_tick(void* camera_part);     // тот же хук, после оригинала: третье лицо
 void note_player(void* ent);           // хук ake.opmn, страховка на случай сломанного реестра
 void copy_frame(Frame* out);           // снимок для рендера
 
@@ -56,6 +57,7 @@ struct AimTarget {
     float angle = 0.f;
 };
 AimTarget current_target();
+bool trigger_ready();                  // цель в конусе автострельбы
 Vec3 aim_point(void* ent, bool* ok);   // пересчёт точки прицеливания по конфигу
 
 } // namespace game

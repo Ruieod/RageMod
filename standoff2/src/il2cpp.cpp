@@ -224,6 +224,50 @@ Vec3 player_position(void* player) {
     return to_vec(fn<V3 (*)(void*)>(off::rva::Player_get_position)(player));
 }
 
+void transform_set_position(void* transform, const Vec3& pos) {
+    if (!readable(transform, 0x20)) return;
+    fn<void (*)(void*, V3)>(off::rva::Transform_set_position)(transform, to_v3(pos));
+}
+
+void* renderer_shared_material(void* renderer) {
+    if (!readable(renderer, 0x30)) return nullptr;
+    return fn<void* (*)(void*)>(off::rva::Renderer_get_sharedMaterial)(renderer);
+}
+
+void renderer_set_material(void* renderer, void* material) {
+    if (!readable(renderer, 0x30) || !readable(material, 0x20)) return;
+    fn<void (*)(void*, void*)>(off::rva::Renderer_set_material)(renderer, material);
+}
+
+void renderer_set_enabled(void* renderer, bool on) {
+    if (!readable(renderer, 0x30)) return;
+    fn<void (*)(void*, bool)>(off::rva::Renderer_set_enabled)(renderer, on);
+}
+
+int material_render_queue(void* material) {
+    if (!readable(material, 0x20)) return -1;
+    return fn<int (*)(void*)>(off::rva::Material_get_renderQueue)(material);
+}
+
+void material_set_render_queue(void* material, int queue) {
+    if (!readable(material, 0x20)) return;
+    fn<void (*)(void*, int)>(off::rva::Material_set_renderQueue)(material, queue);
+}
+
+int string_to_ascii(const void* str, char* out, int cap) {
+    if (!out || cap <= 0) return 0;
+    out[0] = 0;
+    if (!readable(str, off::il2::String_chars + 2)) return 0;
+    int len = read<int>(str, off::il2::String_length);
+    if (len <= 0 || len > 4096) return 0;
+    if (len > cap - 1) len = cap - 1;
+    const uint16_t* src = (const uint16_t*)((const char*)str + off::il2::String_chars);
+    if (!readable(src, sizeof(uint16_t) * (size_t)len)) return 0;
+    for (int i = 0; i < len; i++) out[i] = (char)(src[i] & 0x7f);
+    out[len] = 0;
+    return len;
+}
+
 Quat player_rotation(void* player) {
     if (!readable(player, 0x98)) return {};
     V4 q = fn<V4 (*)(void*)>(off::rva::Player_get_rotation)(player);

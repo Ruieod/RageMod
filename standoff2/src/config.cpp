@@ -12,7 +12,7 @@ Config g_cfg;
 namespace config {
 namespace {
 
-enum class Kind { Bool, Int, Float };
+enum class Kind { Bool, Int, Float, Str };
 struct Field {
     const char* name;
     Kind kind;
@@ -22,6 +22,7 @@ struct Field {
 #define F_BOOL(f)  {#f, Kind::Bool,  &g_cfg.f}
 #define F_INT(f)   {#f, Kind::Int,   &g_cfg.f}
 #define F_FLOAT(f) {#f, Kind::Float, &g_cfg.f}
+#define F_STR(f)   {#f, Kind::Str,   &g_cfg.f}
 
 const Field kFields[] = {
     F_BOOL(esp),          F_BOOL(esp_box),        F_BOOL(esp_bones),       F_BOOL(esp_health),
@@ -30,6 +31,11 @@ const Field kFields[] = {
     F_BOOL(aim_silent),   F_INT(aim_silent_mode), F_BOOL(aim_visible),     F_FLOAT(aim_smooth),
     F_INT(aim_bone),      F_BOOL(aim_fallback_body), F_FLOAT(aim_fov),     F_FLOAT(aim_max_dist),
     F_BOOL(aim_visible_check), F_BOOL(aim_team_check), F_INT(aim_quat),
+    F_BOOL(autofire),     F_INT(autofire_mode),   F_FLOAT(autofire_fov),
+    F_BOOL(autofire_pulse), F_STR(fire_action),
+    F_BOOL(no_recoil),    F_FLOAT(recoil_mult),
+    F_INT(chams),         F_INT(chams_queue),     F_BOOL(chams_team_check),
+    F_BOOL(third_person), F_FLOAT(tp_dist),       F_FLOAT(tp_height), F_BOOL(tp_show_body),
     F_BOOL(draw_fov),     F_BOOL(draw_debug),
     F_BOOL(touch_swap_xy), F_BOOL(touch_invert_x), F_BOOL(touch_invert_y),
 };
@@ -37,6 +43,7 @@ const Field kFields[] = {
 #undef F_BOOL
 #undef F_INT
 #undef F_FLOAT
+#undef F_STR
 
 std::string g_path;
 
@@ -84,6 +91,9 @@ bool save() {
             case Kind::Float:
                 fprintf(f, "  \"%s\": %.3f%s", fd.name, *(float*)fd.p, tail);
                 break;
+            case Kind::Str:
+                fprintf(f, "  \"%s\": \"%s\"%s", fd.name, (const char*)fd.p, tail);
+                break;
         }
     }
     fputs("}\n", f);
@@ -113,6 +123,15 @@ bool load() {
             case Kind::Bool:  *(bool*)fd.p = (strncmp(v, "true", 4) == 0 || *v == '1'); break;
             case Kind::Int:   *(int*)fd.p = atoi(v); break;
             case Kind::Float: *(float*)fd.p = (float)atof(v); break;
+            case Kind::Str: {
+                if (*v != '"') break;
+                v++;
+                char* dst = (char*)fd.p;
+                int i = 0;
+                while (*v && *v != '"' && i < 31) dst[i++] = *v++;
+                dst[i] = 0;
+                break;
+            }
         }
     }
     LOGI("config: loaded %s", path());

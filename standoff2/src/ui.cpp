@@ -232,6 +232,12 @@ void draw_menu() {
             ImGui::Checkbox("Only enemies", &g_cfg.esp_team_check);
             ImGui::Checkbox("Only visible", &g_cfg.esp_visible_only);
             ImGui::SliderFloat("Max dist", &g_cfg.esp_max_dist, 10.f, 300.f, "%.0f m");
+            ImGui::Separator();
+            const char* chams_modes[] = {"off", "render queue", "outline mat", "untouchable mat"};
+            ImGui::Combo("Chams", &g_cfg.chams, chams_modes, 4);
+            ImGui::SliderInt("Queue", &g_cfg.chams_queue, 2000, 5000);
+            ImGui::Checkbox("Only enemies##chams", &g_cfg.chams_team_check);
+            ImGui::TextDisabled("материалы берутся из CharacterBindings игрока");
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("AIMBOT")) {
@@ -259,7 +265,35 @@ void draw_menu() {
             ImGui::Checkbox("Only enemies##aim", &g_cfg.aim_team_check);
             ImGui::EndTabItem();
         }
+        if (ImGui::BeginTabItem("FIRE")) {
+            ImGui::Checkbox("Auto fire", &g_cfg.autofire);
+            const char* fire_modes[] = {"hold always", "only on target"};
+            ImGui::Combo("Mode", &g_cfg.autofire_mode, fire_modes, 2);
+            ImGui::SliderFloat("Trigger FOV", &g_cfg.autofire_fov, 0.5f, 30.f, "%.1f deg");
+            ImGui::Checkbox("Pulse (для одиночных)", &g_cfg.autofire_pulse);
+            ImGui::InputText("Action", g_cfg.fire_action, sizeof(g_cfg.fire_action));
+            ImGui::TextDisabled("имя input-экшена, игра спрашивала такие:");
+            int n = mods::seen_action_count();
+            for (int i = 0; i < n; i++) {
+                const char* name = mods::seen_action(i);
+                if (!name[0]) continue;
+                if (i % 2) ImGui::SameLine();
+                if (ImGui::SmallButton(name)) {
+                    snprintf(g_cfg.fire_action, sizeof(g_cfg.fire_action), "%s", name);
+                }
+            }
+            if (n == 0) ImGui::TextDisabled("(пока ни одного — зайди в раунд)");
+            ImGui::Separator();
+            ImGui::Checkbox("No recoil", &g_cfg.no_recoil);
+            ImGui::SliderFloat("Recoil mult", &g_cfg.recoil_mult, 0.f, 1.f, "%.2f");
+            ImGui::EndTabItem();
+        }
         if (ImGui::BeginTabItem("MISC")) {
+            ImGui::Checkbox("Third person", &g_cfg.third_person);
+            ImGui::SliderFloat("Distance", &g_cfg.tp_dist, 0.5f, 6.f, "%.1f m");
+            ImGui::SliderFloat("Height", &g_cfg.tp_height, -1.f, 2.f, "%.2f m");
+            ImGui::Checkbox("Show own body", &g_cfg.tp_show_body);
+            ImGui::Separator();
             ImGui::Checkbox("FOV circle", &g_cfg.draw_fov);
             ImGui::Checkbox("Debug overlay", &g_cfg.draw_debug);
             ImGui::Separator();
@@ -275,7 +309,7 @@ void draw_menu() {
             ImGui::SameLine();
             if (ImGui::Button("Load", ImVec2(140.f, 0.f))) config::load();
             ImGui::Separator();
-            ImGui::Text("hooks: %d/4", mods::installed_count());
+            ImGui::Text("hooks: %d/6", mods::installed_count());
             ImGui::Text("libunity: %p", (void*)il2cpp::base());
             ImGui::Text("entities: %d, players: %d", g_frame.entities_seen, g_frame.count);
             ImGui::Text("touch: %s", touch::available() ? "ok" : "нет (root?)");
@@ -290,7 +324,7 @@ void draw_debug() {
     if (!g_cfg.draw_debug) return;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     char buf[160];
-    snprintf(buf, sizeof(buf), "RAGE | hooks %d/4 | ent %d | plr %d | cam %.0fx%.0f | fov %.0f",
+    snprintf(buf, sizeof(buf), "RAGE | hooks %d/6 | ent %d | plr %d | cam %.0fx%.0f | fov %.0f",
              mods::installed_count(), g_frame.entities_seen, g_frame.count,
              (float)g_frame.screen_w, (float)g_frame.screen_h, g_frame.fov);
     dl->AddText(ImVec2(9.f, 3.f), col(0, 0, 0, 0.9f), buf);

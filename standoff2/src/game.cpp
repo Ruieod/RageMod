@@ -22,6 +22,7 @@ struct {
     void* local = nullptr;
     uint8_t team = 0;
     AimTarget target;
+    bool trigger_ok = false;
 } g_live; // состояние текущего кадра, пишется и читается только с игрового треда
 
 // страховка на случай, если цепочка реестра njh->gat->gzx развалится после патча:
@@ -36,6 +37,16 @@ int64_t now_ms() {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
+
+// chams: помним исходный материал и его очередь, чтобы вернуть как было
+struct ChamEntry {
+    void* renderer = nullptr;
+    void* mat = nullptr;
+    int queue = -1;
+};
+ChamEntry g_chams[kMaxPlayers];
+int g_chams_n = 0;
+int g_chams_mode_applied = 0;
 
 bool interesting_bone(int b) {
     if (b == 54) return true;              // UpperChest
@@ -132,6 +143,56 @@ void fill_screen(PlayerView& p, void* camera, int sh) {
     p.on_screen = true;
 }
 
+void chams_remember(void* renderer, void* mat) {
+    for (int i = 0; i < g_chams_n; i++) {
+        if (g_chams[i].renderer == renderer) return;
+    }
+    if (g_chams_n >= kMaxPlayers) return;
+    g_chams[g_chams_n].renderer = renderer;
+    g_chams[g_chams_n].mat = mat;
+    g_chams[g_chams_n].queue = material_render_queue(mat);
+    g_chams_n++;
+}
+
+void chams_restore_all() {
+    for (int i = 0; i < g_chams_n; i++) {
+        ChamEntry& e = g_chams[i];
+        if (!readable(e.renderer, 0x30) || !readable(e.mat, 0x20)) continue;
+        if (e.queue >= 0) material_set_render_queue(e.mat, e.queue);
+        renderer_set_material(e.renderer, e.mat);
+    }
+    g_chams_n = 0;
+}
+
+void* model_renderer(void* model) {
+    void* cb = ptr(model, off::fld::jgi_bindings);
+    if (!readable(cb, 0x60)) return nullptr;
+    void* rnd = ptr(cb, off::fld::cb_char_renderer);
+    return readable(rnd, 0x30) ? rnd : nullptr;
+}
+
+void chams_apply(void* model) {
+    void* cb = ptr(model, off::fld::jgi_bindings);
+    if (!readable(cb, 0x60)) return;
+    void* rnd = ptr(cb, off::fld::cb_char_renderer);
+    if (!readable(rnd, 0x30)) return;
+
+    void* orig = renderer_shared_material(rnd);
+    if (!readable(orig, 0x20)) return;
+    chams_remember(rnd, orig);
+
+    void* mat = orig;
+    if (g_cfg.chams == 2) {
+        void* outline = ptr(cb, off::fld::cb_outline_mat);
+        if (readable(outline, 0x20)) mat = outline;
+    } else if (g_cfg.chams == 3) {
+        void* untouchable = ptr(cb, off::fld::cb_untouchable_mat);
+        if (readable(untouchable, 0x20)) mat = untouchable;
+    }
+    if (mat != orig) renderer_set_material(rnd, mat);
+    material_set_render_queue(mat, g_cfg.chams_queue);
+}
+
 void consider_target(const PlayerView& p, const Frame& f, AimTarget& best) {
     if (g_cfg.aim_team_check && !p.enemy) return;
     if (p.dist > g_cfg.aim_max_dist) return;
@@ -170,7 +231,9 @@ bool build_player(void* e, void* camera, Frame& f, AimTarget& best) {
     p.dist = (p.origin - f.cam_pos).len();
     if (p.dist > g_cfg.esp_max_dist && p.dist > g_cfg.aim_max_dist) return false;
 
-    p.bone_count = collect_bones(find_model(e), p.bones, kMaxBones);
+    void* model = find_model(e);
+    p.bone_count = collect_bones(model, p.bones, kMaxBones);
+    if (g_cfg.chams && model && (!g_cfg.chams_team_check || p.enemy)) chams_apply(model);
     p.head = p.origin + Vec3{0.f, 1.55f, 0.f};
     for (int b = 0; b < p.bone_count; b++) {
         if (p.bones[b].bone == (int)off::Bone::Head) p.head = p.bones[b].world;
@@ -243,6 +306,37 @@ Vec3 aim_point(void* ent, bool* ok) {
 
 AimTarget current_target() { return g_live.target; }
 
+bool trigger_ready() { return g_live.trigger_ok; }
+
+void post_tick(void* camera_part) {
+    if (!g_cfg.third_person) return;
+    void* camera = g_live.camera;
+    if (!readable(camera, 0x40)) return;
+    void* tf = component_transform(camera);
+    if (!tf) return;
+
+    Vec3 pos = transform_position(tf);
+    Vec3 fwd = transform_forward(tf);
+    if (pos.bad() || fwd.bad()) return;
+
+    float back = g_cfg.tp_dist;
+    Vec3 want = pos - fwd * back + Vec3{0.f, g_cfg.tp_height, 0.f};
+    RaycastHit hit{};
+    if (linecast(pos, want, &hit, ~0)) {        // не уводим камеру за стену
+        float d = hit.distance - 0.2f;
+        if (d < 0.15f) d = 0.15f;
+        if (d < back) back = d;
+        want = pos - fwd * back + Vec3{0.f, g_cfg.tp_height * (back / g_cfg.tp_dist), 0.f};
+    }
+    transform_set_position(tf, want);
+
+    if (g_cfg.tp_show_body) {
+        void* local = ptr(camera_part, off::fld::chx_owner);
+        void* rnd = model_renderer(find_model(local));
+        if (rnd) renderer_set_enabled(rnd, true);
+    }
+}
+
 void copy_frame(Frame* out) {
     if (!out) return;
     std::lock_guard<std::mutex> lk(g_mu);
@@ -279,6 +373,11 @@ void tick(void* camera_part) {
     f.cam_pos = g_live.pos;
     f.cam_fwd = g_live.fwd;
     f.local_team = g_live.team;
+
+    if (g_cfg.chams != g_chams_mode_applied) {
+        chams_restore_all();
+        g_chams_mode_applied = g_cfg.chams;
+    }
 
     AimTarget best;
     best.angle = 1e9f;
@@ -321,6 +420,7 @@ void tick(void* camera_part) {
     }
 
     g_live.target = best;
+    g_live.trigger_ok = best.ok && best.angle <= g_cfg.autofire_fov;
     if (best.ok) {
         Vec3 s = world_to_screen(camera, best.point);
         if (s.z > 0.05f) {
