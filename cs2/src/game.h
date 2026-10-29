@@ -39,7 +39,10 @@ struct HitEvent {
     int64_t ts = 0;      // когда случилось
     int damage = 0;
     bool kill = false;
+    Vec2 screen;         // где был враг в момент попадания
+    char name[32] = {0};
 };
+constexpr int kMaxHits = 8;
 
 struct Frame {
     int count = 0;
@@ -49,7 +52,8 @@ struct Frame {
     Vec2 target_screen;
     int screen_w = 0, screen_h = 0;
     float fps = 0.f;
-    HitEvent last_hit;
+    HitEvent hits[kMaxHits];
+    int hit_count = 0;
 };
 
 void tick(int screen_w, int screen_h);   // игровая логика, зовётся из Present

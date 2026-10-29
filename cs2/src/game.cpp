@@ -27,7 +27,8 @@ struct HpTrack {
 };
 HpTrack g_hp[kMaxPlayers];
 int g_hp_n = 0;
-HitEvent g_last_hit;
+HitEvent g_hits[kMaxHits];
+int g_hits_n = 0;
 int g_last_shots = 0;
 int64_t g_last_shot_ts = 0;
 
@@ -181,9 +182,18 @@ void track_hits(sdk::Entity local, const Frame& f) {
         }
         // стреляли меньше секунды назад — считаем урон своим
         if (prev > 0 && p.hp < prev && now - g_last_shot_ts < 1000) {
-            g_last_hit.ts = now;
-            g_last_hit.damage = prev - p.hp;
-            g_last_hit.kill = p.hp <= 0;
+            HitEvent e;
+            e.ts = now;
+            e.damage = prev - p.hp;
+            e.kill = p.hp <= 0;
+            e.screen = p.on_screen ? p.head : Vec2{};
+            std::memcpy(e.name, p.name, sizeof(e.name));
+            if (g_hits_n < kMaxHits) {
+                g_hits[g_hits_n++] = e;
+            } else {
+                std::memmove(&g_hits[0], &g_hits[1], sizeof(HitEvent) * (kMaxHits - 1));
+                g_hits[kMaxHits - 1] = e;
+            }
         }
         next[next_n].pawn = p.pawn;
         next[next_n].hp = p.hp;
@@ -348,7 +358,15 @@ void tick(int sw, int sh) {
     run_bhop(local);
     apply_skin(local);
     track_hits(local, f);
-    f.last_hit = g_last_hit;
+    // отдаём только свежие события, старые чистим здесь же
+    f.hit_count = 0;
+    int keep = 0;
+    for (int i = 0; i < g_hits_n; i++) {
+        if (now_ms() - g_hits[i].ts > 2500) continue;
+        g_hits[keep++] = g_hits[i];
+        if (f.hit_count < kMaxHits) f.hits[f.hit_count++] = g_hits[i];
+    }
+    g_hits_n = keep;
 
     g_frame = f;
 }

@@ -23,6 +23,8 @@ const char* key_name(int vk) {
     switch (vk) {
         case 0: return "always";
         case 0x02: return "mouse2";
+        case 0x06: return "mouse5";
+        case 0x20: return "space";
         case 0x2D: return "insert";
         default: return "key";
     }
@@ -30,14 +32,79 @@ const char* key_name(int vk) {
 } // namespace config
 
 namespace game {
-namespace {
 Frame g_stub;
-}
-const BoneLink kBoneLinks[] = {{6, 5}, {5, 4}, {4, 0}};
-const int kBoneLinkCount = 3;
+const BoneLink kBoneLinks[] = {
+    {6, 5}, {5, 4}, {4, 0}, {5, 8}, {8, 9}, {9, 10}, {5, 13}, {13, 14}, {14, 15},
+    {0, 22}, {22, 23}, {23, 24}, {0, 25}, {25, 26}, {26, 27},
+};
+const int kBoneLinkCount = (int)(sizeof(kBoneLinks) / sizeof(kBoneLinks[0]));
 const Frame& frame() { return g_stub; }
 void tick(int, int) {}
 } // namespace game
+
+// рисуем правдоподобный кадр: два врага с костями и события попаданий
+static void fake_frame(int W, int H) {
+    game::Frame& f = game::g_stub;
+    f = game::Frame();
+    f.in_game = true;
+    f.screen_w = W;
+    f.screen_h = H;
+    f.fps = 240.f;
+
+    struct Spec { float x, foot, head, hp; const char* name; bool vis; };
+    const Spec specs[] = {
+        {W * 0.33f, H * 0.70f, H * 0.37f, 74.f, "vtablekewl", true},
+        {W * 0.62f, H * 0.62f, H * 0.44f, 34.f, "jasong", false},
+    };
+
+    for (const Spec& sp : specs) {
+        game::PlayerView p;
+        p.pawn = (uintptr_t)&sp;
+        p.enemy = true;
+        p.visible = sp.vis;
+        p.on_screen = true;
+        p.hp = (int)sp.hp;
+        p.dist = 18.f;
+        p.feet = {sp.x, sp.foot};
+        p.head = {sp.x, sp.head};
+        p.box_w = (sp.foot - sp.head) * 0.45f;
+        snprintf(p.name, sizeof(p.name), "%s", sp.name);
+
+        float hgt = sp.foot - sp.head;
+        float w2 = p.box_w * 0.5f;
+        struct B { int id; float dx, dy; };
+        const B bones[] = {
+            {6, 0.f, 0.02f},   {5, 0.f, 0.17f},   {4, 0.f, 0.34f},  {0, 0.f, 0.52f},
+            {8, -0.42f, 0.2f}, {9, -0.6f, 0.38f}, {10, -0.5f, 0.55f},
+            {13, 0.42f, 0.2f}, {14, 0.62f, 0.36f}, {15, 0.52f, 0.54f},
+            {22, -0.28f, 0.55f}, {23, -0.3f, 0.76f}, {24, -0.26f, 0.98f},
+            {25, 0.28f, 0.55f},  {26, 0.3f, 0.76f},  {27, 0.26f, 0.98f},
+        };
+        for (const B& b : bones) {
+            if (p.bone_count >= game::kMaxBones) break;
+            p.bones[p.bone_count].bone = b.id;
+            p.bones[p.bone_count].on = true;
+            p.bones[p.bone_count].screen = {sp.x + b.dx * w2 * 2.f, sp.head + b.dy * hgt};
+            p.bone_count++;
+        }
+        f.players[f.count++] = p;
+    }
+
+    game::HitEvent hit;
+    hit.ts = 1;
+    hit.damage = 27;
+    hit.screen = f.players[0].head;
+    snprintf(hit.name, sizeof(hit.name), "vtablekewl");
+    f.hits[f.hit_count++] = hit;
+
+    game::HitEvent kill;
+    kill.ts = 2;
+    kill.damage = 100;
+    kill.kill = true;
+    kill.screen = f.players[1].head;
+    snprintf(kill.name, sizeof(kill.name), "jasong");
+    f.hits[f.hit_count++] = kill;
+}
 
 // ---- мягкий растеризатор ImDrawData ----
 struct Image {
@@ -148,14 +215,25 @@ int main(int argc, char** argv) {
     io.Fonts->SetTexID((ImTextureID)1);
     Atlas atlas{pixels, aw, ah};
 
-    ui::toggle_menu();
-    ui::preview_set_tab(tab);
-    if (tab == 1) {                       // вкладка Trigger: показываем бинды «в работе»
-        g_cfg.trigger_bind.key = 0x06;    // mouse5
-        g_cfg.bhop_bind.key = 0x20;       // space
-        ui::preview_wait_bind(&g_cfg.trigger_bind);
+    // tab < 0 — показываем только худ, меню закрыто
+    bool hud_only = tab < 0;
+    g_cfg.aim = true;
+    g_cfg.aim_bind.key = 0x02;
+    g_cfg.trigger = true;
+    g_cfg.trigger_bind.key = 0x06;
+    g_cfg.trigger_bind.mode = 1;
+    g_cfg.trigger_bind.toggled = true;
+    g_cfg.bhop = true;
+    g_cfg.bhop_bind.key = 0x20;
+    fake_frame(W, H);
+
+    if (!hud_only) {
+        ui::toggle_menu();
+        ui::preview_set_tab(tab);
+        if (tab == 1) ui::preview_wait_bind(&g_cfg.trigger_bind);
     }
     for (int i = 0; i < 2; i++) {            // второй кадр: hover/active устаканились
+        io.DeltaTime = i == 0 ? 1.f / 60.f : 0.18f;   // чуть состарим эффекты, чтобы не были в нуле
         ImGui::NewFrame();
         ui::frame(W, H, 240.f);
         ImGui::Render();

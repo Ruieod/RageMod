@@ -41,6 +41,7 @@ struct Config {
     // VISUALS / esp
     bool esp = true;
     bool esp_box = true;
+    int  esp_box_style = 1;          // 0 — рамка целиком, 1 — уголки
     bool esp_skeleton = true;
     bool esp_health = true;
     bool esp_name = true;
@@ -70,6 +71,7 @@ struct Config {
 
     // MISC
     bool watermark = true;
+    bool hud_binds = true;           // список активных биндов в углу
     bool draw_fov = false;
     bool debug = false;
     float menu_scale = 1.f;

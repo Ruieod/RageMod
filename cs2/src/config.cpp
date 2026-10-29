@@ -31,7 +31,7 @@ const Field kFields[] = {
     F_B(bhop), F_K(bhop_bind),
     F_B(hitmarker), F_B(hitmarker_sound), F_F(hitmarker_size), F_B(killeffect),
     F_I(glow_type), F_B(glow_split_visible),
-    F_B(esp), F_B(esp_box), F_B(esp_skeleton), F_B(esp_health), F_B(esp_name), F_B(esp_dist),
+    F_B(esp), F_B(esp_box), F_I(esp_box_style), F_B(hud_binds), F_B(esp_skeleton), F_B(esp_health), F_B(esp_name), F_B(esp_dist),
     F_B(esp_weapon), F_B(esp_team_check), F_B(esp_visible_only), F_F(esp_max_dist), F_B(glow),
     F_B(night), F_F(night_alpha), F_B(bright_players),
     F_B(skins), F_I(skin_paintkit), F_I(skin_seed), F_F(skin_wear), F_I(skin_stattrak),

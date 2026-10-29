@@ -686,64 +686,19 @@ void draw_menu() {
     ImGui::PopStyleVar(2);
 }
 
-// хитмаркер и килл-эффект: крестик в центре, гаснет сам
-void draw_hit_effects() {
-    const game::Frame& f = game::frame();
-    if (f.last_hit.ts == 0) return;
-
-    static int64_t last_seen = 0;
-    static bool beeped = false;
-    if (f.last_hit.ts != last_seen) {
-        last_seen = f.last_hit.ts;
-        beeped = false;
-    }
-
-    // возраст события считаем по времени imgui, а не лезем в winapi из ui
-    static float age = 10.f;
-    static int64_t age_for = 0;
-    if (age_for != f.last_hit.ts) {
-        age_for = f.last_hit.ts;
-        age = 0.f;
-    } else {
-        age += ImGui::GetIO().DeltaTime;
-    }
-
-    const float life = f.last_hit.kill ? 1.1f : 0.35f;
-    if (age > life) return;
-    float k = 1.f - age / life;
-
-    ImGuiIO& io = ImGui::GetIO();
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
-    ImVec2 c(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
-
-    if (g_cfg.hitmarker) {
-        float r = g_cfg.hitmarker_size * S * (f.last_hit.kill ? 1.6f : 1.f);
-        float gap = r * 0.45f;
-        ImU32 col = f.last_hit.kill ? IM_COL32(255, 60, 60, (int)(255 * k))
-                                    : IM_COL32(255, 255, 255, (int)(235 * k));
-        float t = 1.8f * S;
-        dl->AddLine(ImVec2(c.x - r, c.y - r), ImVec2(c.x - gap, c.y - gap), col, t);
-        dl->AddLine(ImVec2(c.x + gap, c.y + gap), ImVec2(c.x + r, c.y + r), col, t);
-        dl->AddLine(ImVec2(c.x - r, c.y + r), ImVec2(c.x - gap, c.y + gap), col, t);
-        dl->AddLine(ImVec2(c.x + gap, c.y - gap), ImVec2(c.x + r, c.y - r), col, t);
-    }
-
-    if (g_cfg.killeffect && f.last_hit.kill) {
-        const char* txt = "KILL";
-        ImVec2 ts = ImGui::CalcTextSize(txt);
-        float y = c.y - 44.f * S - (1.f - k) * 18.f * S;
-        ImU32 col = IM_COL32(255, 70, 70, (int)(255 * k));
-        dl->AddText(ImVec2(c.x - ts.x * 0.5f + 1.f, y + 1.f), IM_COL32(0, 0, 0, (int)(200 * k)), txt);
-        dl->AddText(ImVec2(c.x - ts.x * 0.5f, y), col, txt);
-    } else if (g_cfg.hitmarker && f.last_hit.damage > 0) {
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%d", f.last_hit.damage);
-        ImVec2 ts = ImGui::CalcTextSize(buf);
-        float y = c.y - 34.f * S - (1.f - k) * 10.f * S;
-        dl->AddText(ImVec2(c.x - ts.x * 0.5f + 1.f, y + 1.f), IM_COL32(0, 0, 0, (int)(190 * k)), buf);
-        dl->AddText(ImVec2(c.x - ts.x * 0.5f, y), IM_COL32(255, 210, 90, (int)(240 * k)), buf);
-    }
-    (void)beeped;
+// ---- HUD ----
+// Один кирпич на все элементы: скруглённая плашка с тенью, градиентом и рамкой.
+// Чтобы ватермарка, список биндов и килл-плашка смотрелись одним набором.
+void hud_panel(ImDrawList* dl, ImVec2 p, ImVec2 size, float round, bool accent_bar) {
+    ImVec2 p1(p.x + size.x, p.y + size.y);
+    dl->AddRectFilled(ImVec2(p.x + 2.f * S, p.y + 4.f * S), ImVec2(p1.x + 3.f * S, p1.y + 5.f * S),
+                      IM_COL32(0, 0, 0, 90), round);
+    dl->AddRectFilled(p, p1, IM_COL32(16, 18, 24, 240), round);
+    dl->AddRectFilledMultiColor(ImVec2(p.x + 1.f, p.y + 1.f), ImVec2(p1.x - 1.f, p.y + size.y * 0.55f),
+                                IM_COL32(255, 255, 255, 12), IM_COL32(255, 255, 255, 12), IM_COL32(255, 255, 255, 0),
+                                IM_COL32(255, 255, 255, 0));
+    dl->AddRect(p, p1, IM_COL32(46, 52, 66, 190), round, 0, 1.f);
+    if (accent_bar) dl->AddRectFilled(p, ImVec2(p.x + 3.f * S, p1.y), th::accent, round, ImDrawFlags_RoundCornersLeft);
 }
 
 void draw_watermark() {
@@ -751,21 +706,156 @@ void draw_watermark() {
     ImGuiIO& io = ImGui::GetIO();
     const game::Frame& f = game::frame();
 
-    char line[160];
-    snprintf(line, sizeof(line), "RAGEMOD   |   cs2   |   %d fps   |   %d plr   |   %s", (int)(g_fps + 0.5f),
-             f.count, f.in_game ? "in game" : "menu");
-    ImVec2 ts = ImGui::CalcTextSize(line);
-    float pad = 11.f * S;
-    float w = ts.x + pad * 2.f, h = ts.y + pad;
-    ImVec2 p(io.DisplaySize.x - w - 16.f * S, 16.f * S);
+    const char* brand = "RAGEMOD";
+    char info[128];
+    snprintf(info, sizeof(info), "cs2    %d fps    %d plr    %s", (int)(g_fps + 0.5f), f.count,
+             f.in_game ? "in game" : "menu");
+
+    ImVec2 bs = ImGui::CalcTextSize(brand);
+    ImVec2 is = ImGui::CalcTextSize(info);
+    float padx = 15.f * S, pady = 8.f * S, gap = 12.f * S;
+    float w = padx * 2.f + 15.f * S + bs.x + gap * 2.f + is.x;
+    float h = bs.y + pady * 2.f;
+    ImVec2 p(io.DisplaySize.x - w - 18.f * S, 18.f * S);
 
     ImDrawList* dl = ImGui::GetForegroundDrawList();
-    dl->AddRectFilled(ImVec2(p.x + 2.f * S, p.y + 3.f * S), ImVec2(p.x + w + 3.f * S, p.y + h + 4.f * S), th::shadow,
-                      5.f * S);
-    dl->AddRectFilled(p, ImVec2(p.x + w, p.y + h), th::bg_header, 5.f * S);
-    dl->AddRect(p, ImVec2(p.x + w, p.y + h), th::panel_line, 5.f * S, 0, 1.f);
-    dl->AddRectFilled(p, ImVec2(p.x + w, p.y + 2.f * S), th::accent, 5.f * S, ImDrawFlags_RoundCornersTop);
-    dl->AddText(ImVec2(p.x + pad, p.y + (h - ts.y) * 0.5f + 1.f * S), th::text, line);
+    hud_panel(dl, p, ImVec2(w, h), h * 0.5f, false);
+
+    float cx = p.x + padx + 2.f * S;
+    float cy = p.y + h * 0.5f;
+    dl->AddCircleFilled(ImVec2(cx, cy), 3.4f * S, th::accent);
+    dl->AddCircle(ImVec2(cx, cy), 6.5f * S, IM_COL32(47, 126, 245, 80), 0, 1.2f * S);
+
+    float tx = cx + 13.f * S;
+    dl->AddText(ImVec2(tx, cy - bs.y * 0.5f), IM_COL32(236, 240, 246, 255), brand);
+    tx += bs.x + gap;
+    dl->AddLine(ImVec2(tx, cy - h * 0.25f), ImVec2(tx, cy + h * 0.25f), IM_COL32(72, 80, 98, 170), 1.f);
+    dl->AddText(ImVec2(tx + gap, cy - is.y * 0.5f), th::text_dim, info);
+}
+
+// список активных биндов — то, что обычно висит в углу
+void draw_keybinds() {
+    if (!g_cfg.hud_binds) return;
+    ImGuiIO& io = ImGui::GetIO();
+
+    struct Row {
+        const char* name;
+        Bind* bind;
+        bool on;
+    };
+    Row rows[] = {
+        {"ragebot", &g_cfg.aim_bind, g_cfg.aim},
+        {"trigger", &g_cfg.trigger_bind, g_cfg.trigger},
+        {"bunny hop", &g_cfg.bhop_bind, g_cfg.bhop},
+    };
+
+    const char* title = "keybinds";
+    float line_h = ImGui::GetFontSize() + 8.f * S;
+    float w = ImGui::CalcTextSize(title).x + 100.f * S;
+    int shown = 0;
+    for (const Row& r : rows) {
+        if (!r.on || !r.bind->key) continue;
+        float need = ImGui::CalcTextSize(r.name).x + ImGui::CalcTextSize(config::key_name(r.bind->key)).x + 90.f * S;
+        if (need > w) w = need;
+        shown++;
+    }
+    if (shown == 0) return;
+
+    float head_h = line_h + 3.f * S;
+    float h = head_h + (float)shown * line_h + 9.f * S;
+    ImVec2 p(18.f * S, io.DisplaySize.y - h - 18.f * S);
+
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    hud_panel(dl, p, ImVec2(w, h), 8.f * S, true);
+    dl->AddText(ImVec2(p.x + 15.f * S, p.y + 7.f * S), th::text, title);
+    dl->AddLine(ImVec2(p.x + 11.f * S, p.y + head_h), ImVec2(p.x + w - 11.f * S, p.y + head_h),
+                IM_COL32(46, 52, 66, 170), 1.f);
+
+    float y = p.y + head_h + 6.f * S;
+    for (const Row& r : rows) {
+        if (!r.on || !r.bind->key) continue;
+        bool hold = r.bind->mode == 0;
+        const char* state = hold ? "hold" : (r.bind->toggled ? "on" : "off");
+        ImU32 sc = hold ? th::text_dim : (r.bind->toggled ? th::accent : th::caption);
+        dl->AddText(ImVec2(p.x + 15.f * S, y), th::text_dim, r.name);
+        const char* key = config::key_name(r.bind->key);
+        ImVec2 ks = ImGui::CalcTextSize(key);
+        ImVec2 ss = ImGui::CalcTextSize(state);
+        dl->AddText(ImVec2(p.x + w - 15.f * S - ss.x, y), sc, state);
+        dl->AddText(ImVec2(p.x + w - 24.f * S - ss.x - ks.x, y), th::caption, key);
+        y += line_h;
+    }
+}
+
+// хитмаркер дугами, всплывающий урон у цели, плашка на убийство
+void draw_hit_effects() {
+    const game::Frame& f = game::frame();
+    if (f.hit_count == 0) return;
+    ImGuiIO& io = ImGui::GetIO();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    ImVec2 c(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
+
+    // возраст держим у себя: часов игры в ui нет, считаем по DeltaTime
+    static int64_t seen[game::kMaxHits];
+    static float age[game::kMaxHits];
+    static int seen_n = 0;
+
+    for (int i = 0; i < f.hit_count; i++) {
+        const game::HitEvent& e = f.hits[i];
+        int slot = -1;
+        for (int k = 0; k < seen_n; k++) {
+            if (seen[k] == e.ts) {
+                slot = k;
+                break;
+            }
+        }
+        if (slot < 0) {
+            slot = seen_n < game::kMaxHits ? seen_n++ : 0;
+            seen[slot] = e.ts;
+            age[slot] = 0.f;
+        } else {
+            age[slot] += io.DeltaTime;
+        }
+
+        float life = e.kill ? 1.4f : 0.9f;
+        if (age[slot] > life) continue;
+        float ease = 1.f - age[slot] / life;
+        ease = ease * ease;
+
+        if (g_cfg.hitmarker) {
+            float r = g_cfg.hitmarker_size * S * (e.kill ? 1.7f : 1.f) + (1.f - ease) * 7.f * S;
+            ImU32 col = e.kill ? IM_COL32(255, 72, 72, (int)(255 * ease)) : IM_COL32(255, 255, 255, (int)(240 * ease));
+            for (int q = 0; q < 4; q++) {
+                float a0 = 0.7854f + (float)q * 1.5708f;
+                dl->PathArcTo(c, r, a0, a0 + 0.95f, 12);
+                dl->PathStroke(col, 0, 2.2f * S);
+            }
+        }
+
+        if (e.screen.x > 1.f && e.screen.y > 1.f) {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "-%d", e.damage);
+            ImVec2 ts = ImGui::CalcTextSize(buf);
+            float rise = (1.f - ease) * 28.f * S;
+            ImVec2 at(e.screen.x - ts.x * 0.5f, e.screen.y - 42.f * S - rise);
+            ImU32 col = e.kill ? IM_COL32(255, 90, 90, (int)(255 * ease)) : IM_COL32(255, 214, 102, (int)(255 * ease));
+            dl->AddText(ImVec2(at.x + 1.f, at.y + 1.f), IM_COL32(0, 0, 0, (int)(190 * ease)), buf);
+            dl->AddText(at, col, buf);
+        }
+
+        if (g_cfg.killeffect && e.kill) {
+            char line[64];
+            snprintf(line, sizeof(line), "killed   %s", e.name[0] ? e.name : "enemy");
+            ImVec2 ts = ImGui::CalcTextSize(line);
+            float w = ts.x + 40.f * S, h = ts.y + 15.f * S;
+            ImVec2 p(c.x - w * 0.5f, c.y - 92.f * S - (1.f - ease) * 14.f * S);
+            hud_panel(dl, p, ImVec2(w, h), h * 0.5f, false);
+            dl->AddCircleFilled(ImVec2(p.x + 17.f * S, p.y + h * 0.5f), 3.6f * S,
+                                IM_COL32(255, 72, 72, (int)(255 * ease)));
+            dl->AddText(ImVec2(p.x + 29.f * S, p.y + (h - ts.y) * 0.5f),
+                        IM_COL32(236, 240, 246, (int)(255 * ease)), line);
+        }
+    }
 }
 
 void draw_esp() {
@@ -794,9 +884,23 @@ void draw_esp() {
         ImVec2 a(p.feet.x - w * 0.5f, p.head.y), b(p.feet.x + w * 0.5f, p.feet.y);
 
         if (g_cfg.esp_box && h > 4.f) {
-            dl->AddRect(ImVec2(a.x - 1.f, a.y - 1.f), ImVec2(b.x + 1.f, b.y + 1.f), IM_COL32(0, 0, 0, 170), 0.f, 0,
-                        3.f);
-            dl->AddRect(a, b, c, 0.f, 0, 1.4f);
+            if (g_cfg.esp_box_style == 1) {
+                float cw = (b.x - a.x) * 0.3f, chh = h * 0.2f;
+                const ImVec2 corners[4][3] = {
+                    {ImVec2(a.x, a.y + chh), ImVec2(a.x, a.y), ImVec2(a.x + cw, a.y)},
+                    {ImVec2(b.x - cw, a.y), ImVec2(b.x, a.y), ImVec2(b.x, a.y + chh)},
+                    {ImVec2(a.x, b.y - chh), ImVec2(a.x, b.y), ImVec2(a.x + cw, b.y)},
+                    {ImVec2(b.x - cw, b.y), ImVec2(b.x, b.y), ImVec2(b.x, b.y - chh)},
+                };
+                for (const auto& cr : corners) {
+                    dl->AddPolyline(cr, 3, IM_COL32(0, 0, 0, 180), 0, 3.4f);
+                    dl->AddPolyline(cr, 3, c, 0, 1.7f);
+                }
+            } else {
+                dl->AddRect(ImVec2(a.x - 1.f, a.y - 1.f), ImVec2(b.x + 1.f, b.y + 1.f), IM_COL32(0, 0, 0, 170),
+                            2.f, 0, 3.f);
+                dl->AddRect(a, b, c, 2.f, 0, 1.4f);
+            }
         }
         if (g_cfg.esp_skeleton) {
             auto find = [&](int bone) -> const game::BoneView* {
@@ -815,16 +919,19 @@ void draw_esp() {
         if (g_cfg.esp_health && h > 6.f) {
             float frac = (float)p.hp / 100.f;
             frac = frac < 0.f ? 0.f : (frac > 1.f ? 1.f : frac);
-            float x = a.x - 6.f;
-            dl->AddRectFilled(ImVec2(x - 3.f, a.y - 1.f), ImVec2(x, b.y + 1.f), IM_COL32(0, 0, 0, 180));
-            dl->AddRectFilled(ImVec2(x - 3.f, a.y + h * (1.f - frac)), ImVec2(x, b.y),
-                              IM_COL32((int)(255 * (1.f - frac)), (int)(200 * frac + 40), 60, 255));
+            float x = a.x - 7.f, bw = 3.6f;
+            dl->AddRectFilled(ImVec2(x - bw - 1.f, a.y - 1.f), ImVec2(x + 1.f, b.y + 1.f), IM_COL32(0, 0, 0, 190),
+                              bw);
+            dl->AddRectFilled(ImVec2(x - bw, a.y + h * (1.f - frac)), ImVec2(x, b.y),
+                              IM_COL32((int)(240 * (1.f - frac)), (int)(205 * frac + 35), 70, 255), bw);
         }
         if (g_cfg.esp_name && p.name[0]) {
             ImVec2 ts = ImGui::CalcTextSize(p.name);
-            ImVec2 at(p.feet.x - ts.x * 0.5f, p.head.y - ts.y - 3.f);
-            dl->AddText(ImVec2(at.x + 1.f, at.y + 1.f), IM_COL32(0, 0, 0, 200), p.name);
-            dl->AddText(at, th::text, p.name);
+            float pw = ts.x + 12.f, ph = ts.y + 5.f;
+            ImVec2 np(p.feet.x - pw * 0.5f, p.head.y - ph - 5.f);
+            dl->AddRectFilled(np, ImVec2(np.x + pw, np.y + ph), IM_COL32(12, 14, 19, 205), ph * 0.5f);
+            dl->AddRect(np, ImVec2(np.x + pw, np.y + ph), IM_COL32(46, 52, 66, 170), ph * 0.5f, 0, 1.f);
+            dl->AddText(ImVec2(np.x + 6.f, np.y + 2.5f), th::text, p.name);
         }
         if (g_cfg.esp_dist) {
             char buf[32];
@@ -893,6 +1000,7 @@ void frame(int w, int h, float fps) {
     g_fps = fps;
     draw_esp();
     draw_hit_effects();
+    draw_keybinds();
     draw_watermark();
     if (g_open) draw_menu();
 }
