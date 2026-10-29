@@ -31,53 +31,69 @@ ANDROID_NDK=/path/to/android-ndk-r27c ./pack_zygisk.sh    # -> dist/ragemod-zygi
 ## Как запустить
 
 Железо: нужен **arm64 Android**. Либа arm64-v8a, и на BlueStacks Pie64 игра идёт через
-ARM-трансляцию — инжект туда отдельный геморрой. Рутованный телефон или arm64-образ
-эмулятора (AVD arm64, Waydroid arm64) проще на порядок.
+ARM-трансляцию — инжект туда отдельный геморрой. Телефон или arm64-образ эмулятора
+(AVD arm64, Waydroid arm64) проще на порядок.
 
-**Путь 1 — Zygisk-модуль (так и задумано)**
+### Без рута — репак apk (основной путь)
+
+Нужны `apktool`, `java`, `apksigner`, `python3`.
+
+```bash
+./repack.sh /path/to/standoff2.apk     # -> dist/standoff2-ragemod.apk
+adb install -r dist/standoff2-ragemod.apk
+```
+
+Скрипт распаковывает apk, кладёт `libragemod.so` в `lib/arm64-v8a/`, дописывает
+`System.loadLibrary("ragemod")` в статический конструктор точки входа (своего `Application`,
+а если его нет — launcher-активити), собирает и подписывает. Патч smali идемпотентный.
+
+Что надо знать:
+
+- игра из Play стоит сплитами (`base` + `config.arm64_v8a` + ...). Патчить надо `base`,
+  а ставить всё вместе и одним ключом:
+  `adb install-multiple dist/standoff2-ragemod.apk config.arm64_v8a.apk ...`
+  (остальные сплиты тоже придётся переподписать тем же ключом);
+- подпись меняется, так что прежние данные игры не подхватятся, а серверная проверка
+  подписи, если она есть, может не пустить. Это цена варианта без рута;
+- ввод меню без рута идёт через `UnityEngine.Input` самой игры (см. «Управление»).
+
+### С рутом — Zygisk-модуль
 
 1. Magisk 24+, Zygisk включён.
 2. `./pack_zygisk.sh` → `dist/ragemod-zygisk.zip`.
-3. Magisk → Modules → Install from storage → выбрать zip → reboot.
-4. Запустить игру, проверить `adb logcat -s RageMod`: должно быть `RageMod up (hooks 6/6)`.
+3. Magisk → Modules → Install from storage → zip → reboot.
 
 Та же либа и есть модуль: Magisk грузит её в каждый форк зиготы, в чужих процессах она
 сразу просит `DLCLOSE_MODULE_LIBRARY` и ничего не делает, поднимается только в
 `com.axlebolt.standoff2`.
 
-**Путь 2 — инжект в живой процесс (root shell)**
+### С рутом — инжект в живой процесс
 
 ```bash
 adb push build/arm64/libragemod.so /data/local/tmp/
-adb shell su -c 'chmod 644 /data/local/tmp/libragemod.so'
-# любым arm64 dlopen-инжектором:
 adb shell su -c './inject -p $(pidof com.axlebolt.standoff2) -l /data/local/tmp/libragemod.so'
-```
-
-Или через frida:
-
-```bash
+# или
 frida -U -n com.axlebolt.standoff2 -e 'Module.load("/data/local/tmp/libragemod.so")'
 ```
 
-Конструктор либы сам сверяет `/proc/self/cmdline` с именем пакета, так что в чужой процесс
-её грузить безопасно — просто ничего не произойдёт.
-
-**Путь 3 — без рута, репак apk**
-
-Положить `.so` в `lib/arm64-v8a/`, добавить `System.loadLibrary("ragemod")` в
-`UnityPlayerActivity` (smali), подписать, поставить. Без рута не будет `/dev/input`, то есть
-меню не нажимается: всё только через файл конфига, а править его без рута неудобно.
-Рабочий вариант, но для настройки всё равно нужен рут.
+Конструктор либы сверяет `/proc/self/cmdline` с именем пакета, так что грузить её в чужой
+процесс безопасно — просто ничего не произойдёт.
 
 ## Управление
 
-- меню: кнопка `RAGE` в левом верхнем углу или **VOLUME DOWN**
-- ввод меню читается с `/dev/input` — **нужен root**; без него чит работает, но управляется
-  только файлом `/data/data/com.axlebolt.standoff2/files/ragemod.json`
-- тач смещён или перевёрнут — вкладка MISC, флаги `Swap XY / Invert X / Invert Y`
-- лог: `adb logcat -s RageMod`
-- после патча игры хуки не встанут: смотри раздел «Под новый патч игры»
+Меню открывается кнопкой `RAGE` в левом верхнем углу (без рута хоткеев нет — `/dev/input`
+недоступен).
+
+Два источника ввода, переключаются в MISC:
+
+| `touch source` | как работает |
+|---|---|
+| `game input` (по умолчанию) | тач читаем из `UnityEngine.Input` managed-вызовом в игровом тике. Рут не нужен. Тап уходит и в игру, поэтому пока палец на меню хуки `znn.rpcp` / `znn.qvli` возвращают пустые кнопки и нулевые оси — игра его не видит (`Swallow input under menu`) |
+| `/dev/input` | читаем панель напрямую: точнее и вообще не течёт в игру, плюс VOLUME DOWN как тоггл меню. **Нужен root.** Если тач смещён или перевёрнут — флаги `Swap XY / Invert X / Invert Y` там же |
+
+- лог: `adb logcat -s RageMod`, при старте пишет `RageMod up (hooks 7/7)`
+- конфиг: `/data/data/com.axlebolt.standoff2/files/ragemod.json`, вкладка CONFIG сохраняет/грузит
+- после патча игры хуки не встанут: смотри «Под новый патч игры»
 
 `// у SO2 свой анти-чит: внешнее чтение памяти он переживает, инжект в процесс — риск аккаунта.`
 
@@ -90,10 +106,11 @@ frida -U -n com.axlebolt.standoff2 -e 'Module.load("/data/local/tmp/libragemod.s
 | `jxy.rxjx(ref WeaponContext, Span<Ray>)` | `0x9739FA4` | лучи хит-каста — silent режим 1 |
 | `ake.opmn()` | `0x949E8A0` | страховка на список игроков, если реестр мира развалится |
 | `znn.rpcp(string)` | `0x8D441BC` | геттер состояния кнопки по имени экшена — автострельба |
+| `znn.qvli(string)` | `0x8D3EF78` | геттер осей — глушим ввод под меню |
 | `vez.lhgb(ref WeaponContext, bool)` | `0x9731070` | пересчёт отдачи — no recoil |
 | `eglSwapBuffers` | GOT `libunity.so` | рендер меню и ESP |
 
-Прологи всех шести игровых целей в этой сборке PC-независимы (проверено дизасмом),
+Прологи всех семи игровых целей в этой сборке PC-независимы (проверено дизасмом),
 поэтому inline-хук — простой 16-байтный патч `ldr x16,#8 / br x16/ .quad`, без движка хуков.
 Если после патча игры пролог станет PC-зависимым, хук откажется ставиться и напишет в лог,
 а не испортит код.
@@ -121,8 +138,10 @@ WeaponContext +0x40 RecoilContext.RecoilMult, +0x68 RecoilState (LastShotTime н
 - `WeaponContext` не обфусцирован: `HitTransform` на `+0x10`;
 - слот `eglSwapBuffers` есть в `.rela.plt` libunity.so;
 - прологи хук-целей;
-- `CharacterBindings`, `WeaponContext`, `RecoilState`, `ButtonInput` не обфусцированы — поля и
-  их смещения взяты из дампа как есть.
+- `CharacterBindings`, `WeaponContext`, `RecoilState`, `ButtonInput`, `AxisInput` не
+  обфусцированы — поля и их смещения взяты из дампа как есть;
+- `UnityEngine.InputLegacyModule.dll` лежит в дампе (476 DummyDll), то есть legacy-бэкенд
+  ввода в сборку включён — поэтому `UnityEngine.Input.GetTouch` есть смысл звать вообще.
 
 **Не проверял в игре** (дамп — это ELF установленной сборки, не рантайм):
 
@@ -132,7 +151,10 @@ WeaponContext +0x40 RecoilContext.RecoilMult, +0x68 RecoilState (LastShotTime н
 - смысл отдельных флагов `qdp` (видимость игрока по мнению игры) — поэтому видимость считаем
   своим `Physics.Linecast`, а не флагом;
 - что именно из двух кватернионов `eir` идёт на сервер — в меню выбор `quat A / B / both`;
-- порядок осей тача на конкретном девайсе;
+- порядок осей тача на конкретном девайсе (касается только режима `/dev/input`);
+- отдаёт ли `UnityEngine.Input` реальные тачи в этой сборке. Класс в билде есть, но если
+  Active Input Handling стоит «New only», `touchCount` вернёт 0 — тогда остаётся режим
+  `/dev/input` и рут. Фолбэк на `Input.mousePosition` в коде уже есть (эмулятор, мышь);
 - имя input-экшена выстрела. Хук `znn.rpcp` логирует все имена, которые игра реально спрашивала,
   вкладка FIRE показывает их кнопками — ткнул, и автострельба привязалась к нужному;
 - как выглядят chams с `OutlineMaterial`/`UntouchableMaterial` на SkinnedMeshRenderer. Если

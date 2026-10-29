@@ -37,6 +37,7 @@ const Field kFields[] = {
     F_INT(chams),         F_INT(chams_queue),     F_BOOL(chams_team_check),
     F_BOOL(third_person), F_FLOAT(tp_dist),       F_FLOAT(tp_height), F_BOOL(tp_show_body),
     F_BOOL(draw_fov),     F_BOOL(draw_debug),
+    F_INT(touch_source),  F_BOOL(menu_swallow),
     F_BOOL(touch_swap_xy), F_BOOL(touch_invert_x), F_BOOL(touch_invert_y),
 };
 

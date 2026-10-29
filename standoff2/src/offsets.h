@@ -28,6 +28,12 @@ constexpr uintptr_t Renderer_set_material     = 0x75F2DE8;
 constexpr uintptr_t Renderer_set_enabled      = 0x7605850;
 constexpr uintptr_t Material_get_renderQueue  = 0x76027CC;
 constexpr uintptr_t Material_set_renderQueue  = 0x75FCB04;
+// legacy input (UnityEngine.InputLegacyModule.dll в сборке есть — значит бэкенд включён).
+// *_Injected-варианты принимают out-указатель, поэтому возврат структур через ABI не трогаем.
+constexpr uintptr_t Input_get_touchCount      = 0x7B852F8; // int()
+constexpr uintptr_t Input_GetTouch_Injected   = 0x7B831E4; // void(int, Touch* out)
+constexpr uintptr_t Input_mousePos_Injected   = 0x7B8308C; // void(Vector3* out)
+constexpr uintptr_t Input_GetMouseButton      = 0x7B846F4; // bool(int)
 }
 
 // точки перехвата
@@ -38,6 +44,7 @@ constexpr uintptr_t HitCast_rays     = 0x9739FA4; // jxy.rxjx(ref WeaponContext,
 constexpr uintptr_t Player_update    = 0x949E8A0; // ake.opmn()        — fallback-сбор игроков
 constexpr uintptr_t Input_get_button = 0x8D441BC; // znn.rpcp(string) -> ButtonInput — автострельба
 constexpr uintptr_t Recoil_apply     = 0x9731070; // vez.lhgb(ref WeaponContext, bool) — отдача
+constexpr uintptr_t Input_get_axis   = 0x8D3EF78; // znn.qvli(string) -> AxisInput — глушим ввод под меню
 }
 
 // il2cpp runtime layout (из dump/il2cpp.h этого дампа)
@@ -147,6 +154,13 @@ constexpr uintptr_t rst_last_shot_time   = 0x1C; // не трогать: по н
 namespace cls {
 constexpr const char* player = "ake";
 constexpr const char* model  = "jgi";
+}
+
+// UnityEngine.Touch (legacy)
+namespace touch_fld {
+constexpr uintptr_t position = 0x04; // Vector2
+constexpr uintptr_t phase    = 0x24; // TouchPhase: 0 began, 1 moved, 2 stationary, 3 ended, 4 canceled
+constexpr size_t    size     = 0x44;
 }
 
 // HumanBodyBones

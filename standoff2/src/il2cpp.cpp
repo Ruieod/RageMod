@@ -254,6 +254,28 @@ void material_set_render_queue(void* material, int queue) {
     fn<void (*)(void*, int)>(off::rva::Material_set_renderQueue)(material, queue);
 }
 
+bool unity_touch(Vec2* pos, int* phase) {
+    int count = fn<int (*)()>(off::rva::Input_get_touchCount)();
+    if (count <= 0) return false;
+    uint8_t buf[off::touch_fld::size];
+    std::memset(buf, 0, sizeof(buf));
+    fn<void (*)(int, void*)>(off::rva::Input_GetTouch_Injected)(0, buf);
+    V3 p{};
+    std::memcpy(&p, buf + off::touch_fld::position, sizeof(float) * 2);
+    if (pos) *pos = {p.x, p.y};
+    if (phase) std::memcpy(phase, buf + off::touch_fld::phase, sizeof(int));
+    return true;
+}
+
+bool unity_mouse(Vec2* pos, bool* down) {
+    V3 p{};
+    fn<void (*)(void*)>(off::rva::Input_mousePos_Injected)(&p);
+    bool held = fn<bool (*)(int)>(off::rva::Input_GetMouseButton)(0);
+    if (pos) *pos = {p.x, p.y};
+    if (down) *down = held;
+    return true;
+}
+
 int string_to_ascii(const void* str, char* out, int cap) {
     if (!out || cap <= 0) return 0;
     out[0] = 0;

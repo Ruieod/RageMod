@@ -1,7 +1,10 @@
-// Ввод для меню берём прямо с /dev/input: Unity на Android держит ввод в Java-слое
-// (UnityPlayerActivity), экспортов для перехвата в libunity.so нет — нативных точек
-// вроде AInputQueue_getEvent у неигрового NativeActivity тоже.
-// Нужен root: /dev/input доступен только ему.
+// Два источника ввода для меню:
+//  0 (по умолчанию) — тач из самой игры: UnityEngine.Input, читается managed-вызовом
+//    из игрового тика. Рут не нужен, но тап уходит и в игру — поэтому ui::wants_input()
+//    глушит игровой ввод, пока палец на меню.
+//  1 — /dev/input напрямую. Точнее и не течёт в игру, но нужен root.
+// Перехватить ввод нативно нельзя: Unity на Android держит его в Java-слое
+// (UnityPlayerActivity), экспортов в libunity.so для этого нет.
 #include "touch.h"
 
 #include <cstring>
@@ -189,7 +192,26 @@ void* reader(void*) {
 
 } // namespace
 
+void feed(float x, float y, bool down) {
+    static bool was_down = false;
+    static float last_x = 0.f, last_y = 0.f;
+    if (!down && !was_down) return;
+    if (down && was_down && x == last_x && y == last_y) return;
+    Event e{};
+    e.x = x;
+    e.y = y;
+    e.type = down ? (was_down ? Event::Move : Event::Down) : Event::Up;
+    was_down = down;
+    last_x = x;
+    last_y = y;
+    push(e);
+}
+
 void start() {
+    if (g_cfg.touch_source != 1) {
+        LOGI("touch: ввод из игрового Input (рут не нужен)");
+        return;
+    }
     DIR* dir = opendir("/dev/input");
     if (!dir) {
         LOGE("touch: /dev/input недоступен (нет root?) — меню только через конфиг %s", config::path());

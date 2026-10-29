@@ -54,7 +54,11 @@ struct Config {
     bool draw_fov = false;
     bool draw_debug = false;
 
-    // ввод (ориентация тачскрина относительно landscape-кадра)
+    // ввод
+    int  touch_source = 0;           // 0 = UnityEngine.Input (без рута), 1 = /dev/input (root)
+    bool menu_swallow = true;        // глушить игровой ввод, пока палец на меню
+
+    // ориентация тачскрина относительно landscape-кадра (только для /dev/input)
     bool touch_swap_xy = true;
     bool touch_invert_x = false;
     bool touch_invert_y = true;

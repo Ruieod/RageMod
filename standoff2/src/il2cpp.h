@@ -70,6 +70,10 @@ void renderer_set_enabled(void* renderer, bool on);
 int material_render_queue(void* material);
 void material_set_render_queue(void* material, int queue);
 
+// ввод игры: тач из legacy Input, мышь как фолбэк (эмулятор)
+bool unity_touch(Vec2* pos, int* phase);
+bool unity_mouse(Vec2* pos, bool* down);
+
 // managed string -> ascii (utf-16 с отбросом старшего байта), для имён input-экшенов
 int string_to_ascii(const void* str, char* out, int cap);
 

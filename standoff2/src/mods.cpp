@@ -1,4 +1,5 @@
 #include "mods.h"
+#include "ui.h"
 
 #include <mutex>
 #include <cstring>
@@ -28,6 +29,13 @@ struct ButtonIn {
     uint8_t down;
 };
 ButtonIn (*o_get_button)(void*, void*, void*) = nullptr;
+
+// Axlebolt.Standoff.Inputs.AxisInput: { Vector2 Value } — HFA, возвращается в s0/s1
+struct AxisIn {
+    float x;
+    float y;
+};
+AxisIn (*o_get_axis)(void*, void*, void*) = nullptr;
 
 constexpr int kSeenActions = 32;
 char g_actions[kSeenActions][32];
@@ -67,6 +75,8 @@ void hk_camera_tick(void* self, void* method) {
 ButtonIn hk_get_button(void* self, void* name, void* method) {
     ButtonIn in = o_get_button ? o_get_button(self, name, method) : ButtonIn{0, 0, 0};
 
+    if (ui::wants_input()) return ButtonIn{0, 0, 0}; // палец на меню — в игру ничего не пускаем
+
     char buf[32];
     if (il2cpp::string_to_ascii(name, buf, sizeof(buf)) <= 0) return in;
     note_action(buf);
@@ -87,6 +97,13 @@ ButtonIn hk_get_button(void* self, void* name, void* method) {
         in.released = 0;
     }
     return in;
+}
+
+// znn.qvli(string) -> AxisInput — оси (взгляд, стики). Глушим, пока палец на меню.
+AxisIn hk_get_axis(void* self, void* name, void* method) {
+    AxisIn v = o_get_axis ? o_get_axis(self, name, method) : AxisIn{0.f, 0.f};
+    if (ui::wants_input()) return AxisIn{0.f, 0.f};
+    return v;
 }
 
 // vez.lhgb(ref WeaponContext, bool) — пересчёт отдачи. Гасим состояние после оригинала,
@@ -181,6 +198,7 @@ bool install() {
         {"jxy.rxjx (rays)",        off::hook_rva::HitCast_rays,    (void*)hk_rays,        (void**)&o_rays},
         {"ake.opmn (player)",      off::hook_rva::Player_update,   (void*)hk_player_update, (void**)&o_player_update},
         {"znn.rpcp (input)",       off::hook_rva::Input_get_button, (void*)hk_get_button,  (void**)&o_get_button},
+        {"znn.qvli (axis)",        off::hook_rva::Input_get_axis,  (void*)hk_get_axis,    (void**)&o_get_axis},
         {"vez.lhgb (recoil)",      off::hook_rva::Recoil_apply,    (void*)hk_recoil,      (void**)&o_recoil},
     };
 

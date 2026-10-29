@@ -4,6 +4,7 @@
 #include <GLES3/gl3.h>
 
 #include <time.h>
+#include <atomic>
 #include <cstdio>
 
 #include "backends/imgui_impl_opengl3.h"
@@ -23,6 +24,7 @@ EGLBoolean (*o_swap)(EGLDisplay, EGLSurface) = nullptr;
 bool g_imgui_ready = false;
 bool g_menu_open = true;
 bool g_touch_down = false;
+std::atomic<bool> g_wants_input{false};
 game::Frame g_frame;
 double g_last_time = 0.0;
 
@@ -297,7 +299,10 @@ void draw_menu() {
             ImGui::Checkbox("FOV circle", &g_cfg.draw_fov);
             ImGui::Checkbox("Debug overlay", &g_cfg.draw_debug);
             ImGui::Separator();
-            ImGui::TextDisabled("touch mapping");
+            const char* sources[] = {"game input (no root)", "/dev/input (root)"};
+            ImGui::Combo("Touch source", &g_cfg.touch_source, sources, 2);
+            ImGui::Checkbox("Swallow input under menu", &g_cfg.menu_swallow);
+            ImGui::TextDisabled("touch mapping (только для /dev/input)");
             ImGui::Checkbox("Swap XY", &g_cfg.touch_swap_xy);
             ImGui::Checkbox("Invert X", &g_cfg.touch_invert_x);
             ImGui::Checkbox("Invert Y", &g_cfg.touch_invert_y);
@@ -309,10 +314,10 @@ void draw_menu() {
             ImGui::SameLine();
             if (ImGui::Button("Load", ImVec2(140.f, 0.f))) config::load();
             ImGui::Separator();
-            ImGui::Text("hooks: %d/6", mods::installed_count());
+            ImGui::Text("hooks: %d/7", mods::installed_count());
             ImGui::Text("libunity: %p", (void*)il2cpp::base());
             ImGui::Text("entities: %d, players: %d", g_frame.entities_seen, g_frame.count);
-            ImGui::Text("touch: %s", touch::available() ? "ok" : "нет (root?)");
+            ImGui::Text("touch: %s", g_cfg.touch_source == 0 ? "game input" : (touch::available() ? "evdev ok" : "evdev нет (root?)"));
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -324,7 +329,7 @@ void draw_debug() {
     if (!g_cfg.draw_debug) return;
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     char buf[160];
-    snprintf(buf, sizeof(buf), "RAGE | hooks %d/6 | ent %d | plr %d | cam %.0fx%.0f | fov %.0f",
+    snprintf(buf, sizeof(buf), "RAGE | hooks %d/7 | ent %d | plr %d | cam %.0fx%.0f | fov %.0f",
              mods::installed_count(), g_frame.entities_seen, g_frame.count,
              (float)g_frame.screen_w, (float)g_frame.screen_h, g_frame.fov);
     dl->AddText(ImVec2(9.f, 3.f), col(0, 0, 0, 0.9f), buf);
@@ -357,6 +362,8 @@ EGLBoolean hk_swap(EGLDisplay dpy, EGLSurface surf) {
     draw_debug();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    g_wants_input.store(g_cfg.menu_swallow && (io.WantCaptureMouse || ImGui::IsAnyItemActive()),
+                        std::memory_order_relaxed);
 
     return o_swap(dpy, surf);
 }
@@ -372,5 +379,7 @@ bool install() {
 }
 
 bool menu_open() { return g_menu_open; }
+
+bool wants_input() { return g_wants_input.load(std::memory_order_relaxed); }
 
 } // namespace ui

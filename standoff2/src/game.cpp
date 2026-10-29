@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "log.h"
+#include "touch.h"
 
 using namespace il2cpp;
 
@@ -428,6 +429,21 @@ void tick(void* camera_part) {
             f.target_screen = {s.x, (float)f.screen_h - s.y};
         }
         if (g_cfg.aim_visible) apply_visible_aim(camera_part, cam_tf, f, best);
+    }
+
+    // ввод меню без рута: тач берём из самой игры, Y переворачиваем под ImGui
+    if (g_cfg.touch_source == 0) {
+        Vec2 tp{};
+        int phase = 0;
+        bool down = false;
+        if (unity_touch(&tp, &phase)) {
+            down = phase <= 2; // began / moved / stationary
+        } else {
+            bool held = false;
+            unity_mouse(&tp, &held);
+            down = held;
+        }
+        touch::feed(tp.x, (float)f.screen_h - tp.y, down);
     }
 
     std::lock_guard<std::mutex> lk(g_mu);
