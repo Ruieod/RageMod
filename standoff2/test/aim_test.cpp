@@ -1,5 +1,6 @@
 // host test for aim::Controller: closed loop vs a simulated game (2-tick latency, unknown gain, optional inverted Y)
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <deque>
 
@@ -102,6 +103,27 @@ int main() {
         printf("silent: fired=%d, saved view residual %.2f px\n", fired, std::sqrt(ret.x * ret.x + ret.y * ret.y));
         assert(fired);
         assert(std::sqrt(ret.x * ret.x + ret.y * ret.y) < 6.f);
+    }
+    // silent (3): the held-back fire press is re-issued only while the view sits on the target, then the view returns
+    {
+        aim::Controller c;
+        Sim s{0.9f, 0.9f};
+        s.target = {220, -30};
+        Vec2 ret{0, 0};
+        int fires = 0, off = 0;
+        for (int t = 0; t < 160; t++) {
+            aim::In in; in.haveTarget = true; in.err = s.target; in.inFov = true; in.aimEnabled = true; in.mode = 3;
+            in.userFiring = t < 60; in.aimAllowed = in.userFiring; in.tolPx = 6; in.camShift = s.lastShift;
+            in.haveReturn = true; in.returnErr = ret;
+            aim::Out o = c.update(in);
+            if (o.fireHeld) { fires++; if (std::sqrt(s.target.x * s.target.x + s.target.y * s.target.y) > 6.f) off++; }
+            s.step(o.finger);
+            ret.x += s.lastShift.x; ret.y += s.lastShift.y;
+        }
+        const float res = std::sqrt(ret.x * ret.x + ret.y * ret.y);
+        printf("silent lock: %d fire ticks, %d off target, saved view residual %.2f px\n", fires, off, res);
+        assert(fires > 30 && off == 0);
+        assert(res < 4.f);
     }
     puts("aim tests OK");
     return 0;

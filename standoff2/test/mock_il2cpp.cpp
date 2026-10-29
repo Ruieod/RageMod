@@ -106,6 +106,26 @@ CamBasis basis() {
     return {r, u, f};
 }
 
+// camera rotation <-> quaternion: Unity euler order (y * x), positive x pitches down, the mock's pitch is up-positive
+Quat qmul(Quat a, Quat b) {
+    return {a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y, a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+            a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w, a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z};
+}
+Vec3 qrot(Quat q, Vec3 v) {
+    Quat p = qmul(qmul(q, Quat{v.x, v.y, v.z, 0}), Quat{-q.x, -q.y, -q.z, q.w});
+    return {p.x, p.y, p.z};
+}
+Quat camQuat() {
+    float yaw = at<float>(g_cam, 0x30), pitch = at<float>(g_cam, 0x34);
+    return qmul(Quat{0, std::sin(yaw * 0.5f), 0, std::cos(yaw * 0.5f)}, Quat{std::sin(-pitch * 0.5f), 0, 0, std::cos(-pitch * 0.5f)});
+}
+void setCamQuat(Quat q) {
+    Vec3 f = qrot(q, Vec3{0, 0, 1});
+    at<float>(g_cam, 0x30) = std::atan2(f.x, f.z);
+    at<float>(g_cam, 0x34) = std::asin(f.y < -1.f ? -1.f : (f.y > 1.f ? 1.f : f.y));
+}
+int g_rotWrites = 0;
+
 // ================= Unity methods (ABI: args..., MethodInfo*) =================
 bool m_op_Implicit(void* o, void*) { return o && !isDead(o); }
 void* m_get_name(void* o, void*) { return mkString(reinterpret_cast<char*>(static_cast<unsigned char*>(o) + OFF_NAME)); }
@@ -127,7 +147,9 @@ void* m_GetComponent(void* go, void* type, void*) {
     return nullptr;
 }
 Vec3 m_get_position(void* t, void*) { return at<Vec3>(t, 0x20); }
-Vec3 m_get_forward(void* t, void*) { return at<Vec3>(t, 0x30); }
+Vec3 m_get_forward(void* t, void*) { return t == g_cam ? basis().fwd : at<Vec3>(t, 0x30); }
+Quat m_get_rotation(void* t, void*) { return t == g_cam ? camQuat() : Quat{}; }   // the camera has no parent: local == world
+void m_set_rotation(void* t, Quat q, void*) { if (t == g_cam) { setCamQuat(q); g_rotWrites++; } }
 void* m_get_parent(void* t, void*) { return at<void*>(t, 0x40); }
 void* m_get_root(void* t, void*) { return at<void*>(t, 0x48) ? at<void*>(t, 0x48) : t; }
 
@@ -233,6 +255,10 @@ void setup() {
     addMethod(go, "AddComponent", (void*)m_AddComponent, {"System.Type"});
     addMethod(tr, "get_position", (void*)m_get_position, {});
     addMethod(tr, "get_forward", (void*)m_get_forward, {});
+    addMethod(tr, "get_rotation", (void*)m_get_rotation, {});
+    addMethod(tr, "set_rotation", (void*)m_set_rotation, {"UnityEngine.Quaternion"});
+    addMethod(tr, "get_localRotation", (void*)m_get_rotation, {});
+    addMethod(tr, "set_localRotation", (void*)m_set_rotation, {"UnityEngine.Quaternion"});
     addMethod(tr, "get_parent", (void*)m_get_parent, {});
     addMethod(tr, "get_root", (void*)m_get_root, {});
     addMethod(cam, "get_main", (void*)m_Camera_main, {});
@@ -342,6 +368,7 @@ void mock_set_camera(float x, float y, float z, float yaw, float pitch) { at<Vec
 float mock_cam_yaw() { return at<float>(g_cam, 0x30); }
 float mock_cam_pitch() { return at<float>(g_cam, 0x34); }
 void mock_cam_rotate(float dyaw, float dpitch) { at<float>(g_cam, 0x30) += dyaw; at<float>(g_cam, 0x34) += dpitch; }
+int mock_rot_writes() { return g_rotWrites; }
 void mock_set_wall(float z) {
     g_wallZ = z;
     if (!g_wall) { g_wall = newObj(K("UnityEngine", "Component"), "wall"); at<void*>(g_wall, OFF_TF) = g_wall; }

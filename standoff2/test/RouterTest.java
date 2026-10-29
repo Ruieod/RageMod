@@ -66,6 +66,33 @@ public class RouterTest {
         r.onReal(PointerRouter.ACTION_DOWN, 0, 1, new int[]{3}, new float[]{1710}, new float[]{690}, 100);
         if (!r.userFiring()) throw new AssertionError("userFiring should be true on the fire button");
         r.onReal(PointerRouter.ACTION_UP, 0, 1, new int[]{3}, new float[]{1710}, new float[]{690}, 110);
+
+        // hold-fire (silent): a real press on the fire button stays away from the game, the synthetic fire finger shoots instead
+        log.clear();
+        r.setHoldFire(true);
+        r.flush(200);
+        r.onReal(PointerRouter.ACTION_DOWN, 0, 1, new int[]{4}, new float[]{1705}, new float[]{705}, 210);
+        if (!r.userFiring()) throw new AssertionError("held fire press must still count as userFiring");
+        r.onReal(PointerRouter.ACTION_POINTER_DOWN, 1, 2, new int[]{4, 5}, new float[]{1705, 1300}, new float[]{705, 300}, 220);
+        r.setSynthetic(PointerRouter.SYN_FIRE, true, 1700, 700);
+        r.flush(230);
+        r.setSynthetic(PointerRouter.SYN_FIRE, false, 0, 0);
+        r.flush(240);
+        r.setHoldFire(false);   // silent is done while the finger is still down -> it is handed back to the game
+        r.flush(250);
+        r.onReal(PointerRouter.ACTION_POINTER_UP, 1, 2, new int[]{4, 5}, new float[]{1705, 1300}, new float[]{705, 300}, 260);
+        r.onReal(PointerRouter.ACTION_UP, 0, 1, new int[]{4}, new float[]{1705}, new float[]{705}, 270);
+        String[] expectHold = {
+            "DOWN[0] 5@1300,300",
+            "PDOWN[1] 5@1300,300 25@1700,700",
+            "PUP[1] 5@1300,300 25@1700,700",
+            "PDOWN[0] 4@1705,705 5@1300,300",
+            "PUP[1] 4@1705,705 5@1300,300",
+            "UP[0] 4@1705,705",
+        };
+        for (String l : log) System.out.println(l);
+        if (log.size() != expectHold.length) throw new AssertionError("hold-fire event count " + log.size() + " != " + expectHold.length);
+        for (int i = 0; i < expectHold.length; i++) if (!log.get(i).equals(expectHold[i])) throw new AssertionError("hold-fire event " + i + ": " + log.get(i) + " != " + expectHold[i]);
         System.out.println("router tests OK");
     }
 }

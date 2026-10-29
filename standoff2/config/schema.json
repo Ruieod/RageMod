@@ -31,7 +31,7 @@
       "groups": [
         {"title": "Aim assist", "items": [
           {"id": "aim.enable",  "t": "toggle", "l": "Enabled", "d": 0, "w": true},
-          {"id": "aim.mode",    "t": "combo",  "l": "Mode", "d": 0, "o": ["Smooth", "Snap", "Silent flick"], "w": true, "dep": "aim.enable"},
+          {"id": "aim.mode",    "t": "combo",  "l": "Mode", "d": 0, "o": ["Smooth", "Snap", "Silent flick", "Silent"], "w": true, "dep": "aim.enable"},
           {"id": "aim.trigger", "t": "combo",  "l": "Active when", "d": 1, "o": ["Always", "While I fire"], "dep": "aim.enable"},
           {"id": "aim.fov",     "t": "slider", "l": "Field of view", "d": 25, "min": 1, "max": 180, "step": 1, "u": "°", "w": true, "dep": "aim.enable"},
           {"id": "aim.smooth",  "t": "slider", "l": "Smoothing", "d": 35, "min": 0, "max": 100, "step": 1, "u": "%", "w": true, "dep": "aim.enable"},

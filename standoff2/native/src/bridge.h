@@ -33,8 +33,9 @@ struct Command {
     float dx = 0, dy = 0;       // accumulated finger delta since the last poll
     float fireHeld = 0;
     float vibrate = 0;
+    float holdFire = 0;         // silent: keep real fire presses away from the game, the fire finger shoots instead
 };
-void pushCommand(bool lookActive, float dx, float dy, bool fireHeld);
+void pushCommand(bool lookActive, float dx, float dy, bool fireHeld, bool holdFire);
 void pushVibrate();
 Command pollCommand();
 

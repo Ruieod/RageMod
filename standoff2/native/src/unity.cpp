@@ -21,6 +21,10 @@ bool init() {
     BIND_SIG(GameObject_AddComponent, "UnityEngine", "GameObject", "AddComponent", "System.Type");
     BIND(Transform_get_position, "UnityEngine", "Transform", "get_position", 0);
     BIND(Transform_get_forward, "UnityEngine", "Transform", "get_forward", 0);
+    BIND(Transform_get_rotation, "UnityEngine", "Transform", "get_rotation", 0);
+    BIND(Transform_set_rotation, "UnityEngine", "Transform", "set_rotation", 1);
+    BIND(Transform_get_localRotation, "UnityEngine", "Transform", "get_localRotation", 0);
+    BIND(Transform_set_localRotation, "UnityEngine", "Transform", "set_localRotation", 1);
     BIND(Transform_get_parent, "UnityEngine", "Transform", "get_parent", 0);
     BIND(Transform_get_root, "UnityEngine", "Transform", "get_root", 0);
 

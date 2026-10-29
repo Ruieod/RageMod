@@ -13,11 +13,11 @@ struct In {
     float dt = 1.f / 60.f;
     bool haveTarget = false;
     Vec2 err;                     // target - crosshair, px (x right, y down)
-    float tolPx = 12.f;           // alignment threshold used by the silent-flick phases, px
+    float tolPx = 12.f;           // alignment threshold used by the silent phases, px
     bool inFov = false;           // target inside the aim FOV circle
     bool aimEnabled = false;
     bool aimAllowed = true;       // trigger rule satisfied (always / while I fire)
-    int mode = 0;                 // 0 smooth, 1 snap, 2 silent flick
+    int mode = 0;                 // 0 smooth, 1 snap, 2 silent flick, 3 silent (rendered camera held by game.cpp)
     float smooth = 0.35f;         // 0..1 (1 = slowest)
     bool afEnabled = false;
     bool afAligned = false;       // crosshair is on an allowed enemy hitbox (visible / team rules already applied)
@@ -31,7 +31,7 @@ struct In {
     float rcsGainPx = 14.f;
     float sens = 1.0f;            // initial gain guess (view px per finger px)
     bool autoTune = true;
-    bool haveReturn = false;      // silent flick: saved forward is available
+    bool haveReturn = false;      // silent: saved forward is available
     Vec2 returnErr;               // (saved forward point) - crosshair, px
     float maxStepPx = 400.f;
 };

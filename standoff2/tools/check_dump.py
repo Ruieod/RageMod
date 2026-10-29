@@ -122,7 +122,7 @@ def main():
             total += 1
             if not lookup(classes, m.group(1), m.group(2)):
                 print("MISSING class  %s.%s   (%s)" % (m.group(1), m.group(2), os.path.basename(f))); bad += 1
-        for m in re.finditer(r'(?:\bmethod\(|\bBIND\(\s*[\w:]+\s*,)\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",\s*(-?\d+)', txt):
+        for m in re.finditer(r'(?:\bmethod\(|\binstallRender\(|\bBIND\(\s*[\w:]+\s*,)\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",\s*(-?\d+)', txt):
             total += 1
             ns, cl, me, ac = m.group(1), m.group(2), m.group(3), int(m.group(4))
             if not lookup(classes, ns, cl):

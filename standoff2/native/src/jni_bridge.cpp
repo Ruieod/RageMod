@@ -32,7 +32,7 @@ jint jReadFrame(JNIEnv* env, jclass, jfloatArray arr) {
 
 void jPollCmd(JNIEnv* env, jclass, jfloatArray arr) {
     const bridge::Command c = bridge::pollCommand();
-    float tmp[8] = {static_cast<float>(c.seq), c.lookActive, c.dx, c.dy, c.fireHeld, c.vibrate, 0, 0};
+    float tmp[8] = {static_cast<float>(c.seq), c.lookActive, c.dx, c.dy, c.fireHeld, c.vibrate, c.holdFire, 0};
     env->SetFloatArrayRegion(arr, 0, 8, tmp);
 }
 

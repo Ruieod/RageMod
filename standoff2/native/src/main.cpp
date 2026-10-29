@@ -21,7 +21,19 @@ std::atomic<bool> g_started{false};
 std::atomic<bool> g_javaUp{false};
 JavaVM* g_vm = nullptr;
 
-// ---- per-frame hook: swap MethodInfo::methodPointer of a Unity message that the engine invokes every frame ----
+// ---- hooks: swap MethodInfo::methodPointer of methods the engine invokes by MethodInfo every frame ----
+void* swapMethod(const char* ns, const char* cls, const char* name, int argc, void* repl) {
+    il2::Method* m = il2::method(ns, cls, name, argc);
+    if (!m) return nullptr;
+    void** slot = il2::fnSlot(m);
+    void* original = slot[0];
+    if (!original) return nullptr;
+    slot[0] = repl;
+    if (slot[1] == original) slot[1] = repl;   // virtualMethodPointer
+    rlog("hook: %s.%s::%s -> %p (orig %p)", ns, cls, name, repl, original);
+    return original;
+}
+
 template <int N> struct TickHook {
     static void (*orig)(void*, void*);
     static void hook(void* self, void* mi) {
@@ -32,17 +44,35 @@ template <int N> struct TickHook {
 template <int N> void (*TickHook<N>::orig)(void*, void*) = nullptr;
 
 template <int N> bool installHook(const char* ns, const char* cls, const char* name) {
+    // orig is published before the swap: the Unity thread may enter the hook right after the store
     il2::Method* m = il2::method(ns, cls, name, 0);
-    if (!m) return false;
-    void** slot = il2::fnSlot(m);
-    void* original = slot[0];
-    if (!original) return false;
-    TickHook<N>::orig = reinterpret_cast<void (*)(void*, void*)>(original);
-    void* repl = reinterpret_cast<void*>(&TickHook<N>::hook);
-    slot[0] = repl;
-    if (slot[1] == original) slot[1] = repl;   // virtualMethodPointer
-    rlog("hook: %s.%s::%s -> %p (orig %p)", ns, cls, name, repl, original);
-    return true;
+    if (!m || !il2::fnPtr(m)) return false;
+    TickHook<N>::orig = reinterpret_cast<void (*)(void*, void*)>(il2::fnPtr(m));
+    return swapMethod(ns, cls, name, 0, reinterpret_cast<void*>(&TickHook<N>::hook)) != nullptr;
+}
+
+// ---- render hooks for the silent camera lock (static [RequiredByNativeCode] methods) ----
+void (*g_origCanvases)(void*) = nullptr;
+void (*g_origPreCull)(void*, void*) = nullptr;
+void (*g_origPostRender)(void*, void*) = nullptr;
+void canvasesHook(void* mi) {   // PostLateUpdate: after every Update / LateUpdate / ECS presentation, before rendering
+    if (g_origCanvases) g_origCanvases(mi);
+    game::preRender(nullptr);
+}
+void preCullHook(void* cam, void* mi) {
+    game::preRender(cam);
+    if (g_origPreCull) g_origPreCull(cam, mi);
+}
+void postRenderHook(void* cam, void* mi) {
+    if (g_origPostRender) g_origPostRender(cam, mi);
+    game::postRender(cam);
+}
+
+template <class F> int installRender(const char* ns, const char* cls, const char* name, int argc, F& orig, F repl) {
+    il2::Method* m = il2::method(ns, cls, name, argc);
+    if (!m || !il2::fnPtr(m)) return 0;
+    orig = reinterpret_cast<F>(il2::fnPtr(m));
+    return swapMethod(ns, cls, name, argc, reinterpret_cast<void*>(repl)) ? 1 : 0;
 }
 
 JavaVM* findVm() {
@@ -94,6 +124,11 @@ void worker() {
     hooks += installHook<0>("UnityEngine.EventSystems", "EventSystem", "Update");
     hooks += installHook<1>("UnityEngine.UI", "ScrollRect", "LateUpdate");
     rlog("frame hooks installed: %d", hooks);
+    int render = 0;
+    render += installRender("UnityEngine", "Canvas", "SendWillRenderCanvases", 0, g_origCanvases, &canvasesHook);
+    render += installRender("UnityEngine", "Camera", "FireOnPreCull", 1, g_origPreCull, &preCullHook);
+    render += installRender("UnityEngine", "Camera", "FireOnPostRender", 1, g_origPostRender, &postRenderHook);
+    rlog("render hooks installed: %d", render);
     bridge::setStatus(hooks ? "hooks installed, waiting for the first frame" : "NO FRAME HOOK could be installed");
 }
 

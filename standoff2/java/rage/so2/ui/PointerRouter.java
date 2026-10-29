@@ -5,6 +5,8 @@ package rage.so2.ui;
  *
  * - real pointers that start on our UI (menu / floating button / calibration markers) are kept away from the game
  * - synthetic fingers (aimbot "look" finger, autofire "fire" finger) are merged into the stream the game sees
+ * - while hold-fire is set (silent aim has a target), real fingers that went down on the fire button are kept away from
+ *   the game too: the native side fires through the synthetic fire finger once the real view sits on the target
  *
  * The game-side stream is always re-emitted as a canonical sequence (DOWN / POINTER_DOWN / MOVE / POINTER_UP / UP) built from
  * the diff between the previous and the desired pointer set, so the game never sees an inconsistent gesture.
@@ -36,6 +38,7 @@ public final class PointerRouter {
     // real pointers
     private final boolean[] rDown = new boolean[MAXID];
     private final int[] rOwner = new int[MAXID];
+    private final boolean[] rFire = new boolean[MAXID];   // went down on the fire button
     private final float[] rx = new float[MAXID], ry = new float[MAXID];
 
     // synthetic pointers
@@ -54,6 +57,7 @@ public final class PointerRouter {
 
     // anchors for classification (px)
     private float fireX, fireY, fireR = 80, viewW = 1920, viewH = 1080;
+    private boolean holdFire;
 
     public PointerRouter(Ui ui, Sink sink) { this.ui = ui; this.sink = sink; }
 
@@ -72,6 +76,7 @@ public final class PointerRouter {
                 if (id < 0 || id >= MAXID) return;
                 for (int i = 0; i < count; i++) if (pid[i] >= 0 && pid[i] < MAXID) { rx[pid[i]] = px[i]; ry[pid[i]] = py[i]; }
                 rDown[id] = true;
+                rFire[id] = onFire(id);
                 if (ui.hit(px[actionIndex], py[actionIndex])) {
                     rOwner[id] = OWN_UI;
                     ui.down(id, px[actionIndex], py[actionIndex]);
@@ -124,28 +129,28 @@ public final class PointerRouter {
 
     public boolean syntheticDown(int slot) { return sDown[slot]; }
 
+    /** silent aim: keep real fire presses from the game (applied on the next sync / flush) */
+    public void setHoldFire(boolean hold) { holdFire = hold; }
+
+    public boolean holdFire() { return holdFire; }
+
     /** apply synthetic changes; call once per frame after setSynthetic */
     public void flush(long time) { sync(time, false); }
 
     // ---------------- classification for the native side ----------------
 
+    private boolean onFire(int id) {
+        float dx = rx[id] - fireX, dy = ry[id] - fireY;
+        return dx * dx + dy * dy <= fireR * fireR;
+    }
+
     public boolean userFiring() {
-        for (int id = 0; id < MAXID; id++) {
-            if (rDown[id] && rOwner[id] == OWN_GAME) {
-                float dx = rx[id] - fireX, dy = ry[id] - fireY;
-                if (dx * dx + dy * dy <= fireR * fireR) return true;
-            }
-        }
+        for (int id = 0; id < MAXID; id++) if (rDown[id] && rOwner[id] == OWN_GAME && onFire(id)) return true;
         return false;
     }
 
     public boolean userLooking() {
-        for (int id = 0; id < MAXID; id++) {
-            if (rDown[id] && rOwner[id] == OWN_GAME && rx[id] > viewW * 0.38f) {
-                float dx = rx[id] - fireX, dy = ry[id] - fireY;
-                if (dx * dx + dy * dy > fireR * fireR) return true;
-            }
-        }
+        for (int id = 0; id < MAXID; id++) if (rDown[id] && rOwner[id] == OWN_GAME && rx[id] > viewW * 0.38f && !onFire(id)) return true;
         return false;
     }
 
@@ -157,7 +162,9 @@ public final class PointerRouter {
         // desired pointer set for the game
         boolean[] want = new boolean[MAXID];
         float[] wx = new float[MAXID], wy = new float[MAXID];
-        for (int id = 0; id < MAXID; id++) if (rDown[id] && rOwner[id] == OWN_GAME) { want[id] = true; wx[id] = rx[id]; wy[id] = ry[id]; }
+        for (int id = 0; id < MAXID; id++) {
+            if (rDown[id] && rOwner[id] == OWN_GAME && !(holdFire && rFire[id])) { want[id] = true; wx[id] = rx[id]; wy[id] = ry[id]; }
+        }
         for (int k = 0; k < SYN_COUNT; k++) if (sDown[k]) { int id = SYN_ID_BASE + k; want[id] = true; wx[id] = sx[k]; wy[id] = sy[k]; }
 
         if (cancel && gCount > 0) {

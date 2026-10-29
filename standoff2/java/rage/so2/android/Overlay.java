@@ -221,6 +221,11 @@ public final class Overlay implements Menu.Host, PointerRouter.Ui, Choreographer
             router.flush(now);
             fireDown = wantFire;
         }
+        boolean hold = cmd[6] > 0.5f && !block;
+        if (hold != router.holdFire()) {
+            router.setHoldFire(hold);
+            router.flush(now);
+        }
     }
 
     // =====================================================================================================

@@ -63,6 +63,63 @@ int g_lastTarget = -1;
 bool g_fireHeld = false;
 uint64_t g_ticks = 0;
 
+// ---- silent camera lock (aim mode 3) ----
+// The synthetic finger still turns the real view (that is what the game shoots along), but right before the frame is
+// rendered the camera transform is put back to where the player was looking, and restored once the frame is drawn, so
+// the flick never shows on screen. Pinned from Canvas.SendWillRenderCanvases / Camera.FireOnPreCull, restored from
+// Camera.FireOnPostRender or, when the pipeline does not call that, at the start of the next tick.
+struct Lock {
+    bool active = false;
+    float weight = 0;            // 1 = view fully held; fades out after the flick so the small return residual blends in
+    Quat hold;                   // world rotation shown to the player
+    double stamp = -10;          // last tick that refreshed the lock (a dead tick hook must never freeze the view)
+    bool applied = false;        // the pinned rotation is in the camera right now
+    int frame = -1;
+    Ref tf;
+    void* tfRaw = nullptr;
+    Quat realLocal, pinLocal;
+    int pins = 0, restores = 0, overwritten = 0, canvasHooks = 0, cullHooks = 0, postHooks = 0;
+};
+Lock g_lock;
+Quat g_savedRot;
+
+bool lockReady() {
+    return unity::Transform_get_rotation.ok() && unity::Transform_set_rotation.ok() && unity::Transform_get_localRotation.ok() &&
+           unity::Transform_set_localRotation.ok();
+}
+
+Quat lockView(Quat real) { return g_lock.weight >= 1.f ? g_lock.hold : nlerp(real, g_lock.hold, g_lock.weight); }
+
+void restoreLock() {
+    if (!g_lock.applied) return;
+    g_lock.applied = false;
+    try {
+        void* tf = g_lock.tf.get();
+        if (!tf || !unity::alive(tf)) return;
+        if (qsame(unity::Transform_get_localRotation(tf), g_lock.pinLocal)) {
+            unity::Transform_set_localRotation(tf, g_lock.realLocal);
+            g_lock.restores++;
+        } else {
+            g_lock.overwritten++;   // the game already wrote a fresh rotation, nothing to undo
+        }
+    } catch (...) { g_exceptions++; }
+}
+
+// temporarily shows the held view to Camera.WorldToScreenPoint so the ESP matches what is rendered
+struct ViewOverride {
+    void* tf = nullptr;
+    Quat local;
+    ViewOverride(void* t) {
+        if (!t || !g_lock.active || g_lock.weight <= 0.f || !lockReady()) return;
+        local = unity::Transform_get_localRotation(t);
+        unity::Transform_set_rotation(t, lockView(unity::Transform_get_rotation(t)));
+        tf = t;
+    }
+    ~ViewOverride() {
+        if (tf) { try { unity::Transform_set_localRotation(tf, local); } catch (...) { g_exceptions++; } }
+    }
+};
+
 bool okVec(Vec3 v) { return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z); }
 
 std::string lowerAlnum(const std::string& s) {
@@ -453,6 +510,7 @@ bool init() {
 void tick() {
     const double t0 = nowSec();
     g_ticks++;
+    restoreLock();   // the game and the measurements below must see the real view
     int fc = 0;
     try { fc = unity::Time_get_frameCount(); } catch (...) { return; }
     if (fc == W.frameNo) return;   // several hooks may call us in the same frame
@@ -483,6 +541,7 @@ void tick() {
         void* ctf = unity::Component_get_transform(W.cam);
         W.camPos = unity::Transform_get_position(ctf);
         W.camFwd = unity::Transform_get_forward(ctf);
+        const Quat camRot = lockReady() ? unity::Transform_get_rotation(ctf) : Quat{};
         W.vfov = clampf(unity::Camera_get_fieldOfView(W.cam), 20.f, 120.f);
 
         if (W.now - g_lastScan > 0.25) { g_lastScan = W.now; rescan(); }
@@ -600,7 +659,7 @@ void tick() {
         }
         g_prevRefWorld = W.camPos + W.camFwd * 100.f;
         g_haveRef = true;
-        if (!g_prevEngaged) { g_savedFwdWorld = W.camPos + W.camFwd * 100.f; g_haveSaved = true; }
+        if (!g_prevEngaged) { g_savedFwdWorld = W.camPos + W.camFwd * 100.f; g_savedRot = camRot; g_haveSaved = true; }
 
         // ---- controller ----
         aim::In ai;
@@ -641,7 +700,20 @@ void tick() {
         g_fireHeld = ao.fireHeld;
         if (ao.fireHeld || in.userFiring > 0.5f) g_lastFireT = W.now;
         const bool allow = in.menuOpen < 0.5f && !GB(cfg::C_CAL_ON);
-        bridge::pushCommand(allow && ao.lookActive, allow ? ao.finger.x : 0.f, allow ? ao.finger.y : 0.f, allow && ao.fireHeld);
+        const bool silent = ai.mode == 3 && ai.aimEnabled;
+        bridge::pushCommand(allow && ao.lookActive, allow ? ao.finger.x : 0.f, allow ? ao.finger.y : 0.f, allow && ao.fireHeld,
+                            allow && silent && (target != nullptr || ao.engaged));
+
+        // camera lock: hold the view the flick started from for as long as the controller is engaged
+        if (silent && ao.engaged && lockReady()) {
+            if (!g_lock.active) g_lock.hold = g_savedRot;
+            g_lock.active = true;
+            g_lock.weight = 1.f;
+        } else if (g_lock.active) {
+            g_lock.weight = silent ? g_lock.weight - W.dt / 0.09f : 0.f;
+            if (g_lock.weight <= 0.f) { g_lock.weight = 0.f; g_lock.active = false; }
+        }
+        g_lock.stamp = W.now;
 
         // ---- publish ----
         out[frame::H_W] = static_cast<float>(W.camW);
@@ -653,12 +725,15 @@ void tick() {
         out[frame::H_CY] = cross_y;
         out[frame::H_TARGET] = -1;
         int idx = 0;
-        for (Char* c : list) {
-            float* pf = out + frame::kHeader + idx * frame::kStride;
-            fillPlayer(pf, *c, c == target, hb);
-            if (c == target) out[frame::H_TARGET] = static_cast<float>(idx);
-            c->slot = idx;
-            idx++;
+        {
+            ViewOverride shown(ctf);
+            for (Char* c : list) {
+                float* pf = out + frame::kHeader + idx * frame::kStride;
+                fillPlayer(pf, *c, c == target, hb);
+                if (c == target) out[frame::H_TARGET] = static_cast<float>(idx);
+                c->slot = idx;
+                idx++;
+            }
         }
         out[frame::H_COUNT] = static_cast<float>(idx);
         out[frame::H_KILLSEQ] = static_cast<float>(g_killSeq);
@@ -698,8 +773,42 @@ std::string describe() {
              W.local && !W.local->toolName.empty() ? (std::string(" (tool '") + W.local->toolName + "')").c_str() : "",
              g_aim.gain().x, g_aim.gain().y, g_aim.lag(), g_aim.samples(), g_killSeq, g_lastTarget, visualsDescribe().c_str());
     std::string s = b;
+    char l[200];
+    snprintf(l, sizeof l, "\nsilent lock: %s  hooks canvas %d / cull %d / post %d  pins %d  restores %d  overwritten %d",
+             !lockReady() ? "n/a" : (g_lock.active ? "holding" : "idle"), g_lock.canvasHooks, g_lock.cullHooks, g_lock.postHooks,
+             g_lock.pins, g_lock.restores, g_lock.overwritten);
+    s += l;
     if (il2::stat().fail > 0) { s += "\nmissing: "; s += il2::stat().failed; }
     return s;
+}
+
+void preRender(void* cam) {
+    if (cam) g_lock.cullHooks++; else g_lock.canvasHooks++;
+    if (!g_lock.applied && !g_lock.active) return;
+    try {
+        void* main = unity::Camera_get_main();
+        if (!main || (cam && cam != main)) return;
+        const int fc = unity::Time_get_frameCount();
+        if (g_lock.applied && g_lock.frame == fc) return;   // canvas pass already pinned this frame
+        restoreLock();
+        if (!g_lock.active || g_lock.weight <= 0.f || nowSec() - g_lock.stamp > 0.25 || !lockReady()) return;
+        void* tf = unity::Component_get_transform(main);
+        if (tf != g_lock.tfRaw) { g_lock.tf.set(tf); g_lock.tfRaw = tf; }
+        g_lock.realLocal = unity::Transform_get_localRotation(tf);
+        unity::Transform_set_rotation(tf, lockView(unity::Transform_get_rotation(tf)));
+        g_lock.pinLocal = unity::Transform_get_localRotation(tf);
+        g_lock.applied = true;
+        g_lock.frame = fc;
+        g_lock.pins++;
+    } catch (...) { g_exceptions++; }
+}
+
+void postRender(void* cam) {
+    g_lock.postHooks++;
+    if (!g_lock.applied || !cam) return;
+    try {
+        if (unity::Component_get_transform(cam) == g_lock.tfRaw) restoreLock();
+    } catch (...) { g_exceptions++; }
 }
 
 }  // namespace game

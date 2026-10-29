@@ -23,6 +23,10 @@ inline Fn<void*(void*, void*)> GameObject_GetComponent;       // (this, Type)
 inline Fn<void*(void*, void*)> GameObject_AddComponent;       // (this, Type)
 inline Fn<Vec3(void*)> Transform_get_position;
 inline Fn<Vec3(void*)> Transform_get_forward;
+inline Fn<Quat(void*)> Transform_get_rotation;
+inline Fn<void(void*, Quat)> Transform_set_rotation;
+inline Fn<Quat(void*)> Transform_get_localRotation;
+inline Fn<void(void*, Quat)> Transform_set_localRotation;
 inline Fn<void*(void*)> Transform_get_parent;
 inline Fn<void*(void*)> Transform_get_root;
 

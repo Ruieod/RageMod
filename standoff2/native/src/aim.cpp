@@ -78,31 +78,33 @@ Out Controller::update(const In& in0) {
     const Vec2 errP{in.err.x - fl.x, in.err.y - fl.y};                                  // where the target will be once in-flight input lands
     const Vec2 retP{in.returnErr.x - fl.x, in.returnErr.y - fl.y};
 
-    if (in.mode == 2) {   // silent flick: acquire -> shoot -> return to where the player was looking
+    const bool hidden = in.mode == 3;   // the flick never shows on screen, so it can run at full speed
+    if (in.mode == 2 || hidden) {       // silent: acquire -> shoot -> return to where the player was looking
         switch (phase_) {
-            case IDLE:
-                if (aimOn && cooldown_ <= 0) { phase_ = ACQUIRE; phaseT_ = 0; }
+            case IDLE:   // silent only turns the real view when there is a shot to take
+                if (aimOn && cooldown_ <= 0 && (!hidden || in.afEnabled || in.userFiring)) { phase_ = ACQUIRE; phaseT_ = 0; }
                 break;
             case ACQUIRE:
                 phaseT_ += dt;
                 if (!aimOn) { phase_ = RETURN; phaseT_ = 0; break; }
-                view = stepToward(errP, 0.65f, dt, in.maxStepPx);
+                view = stepToward(errP, hidden ? 0.8f : 0.65f, dt, in.maxStepPx);
                 engaged = true;
                 if (len2(in.err) < std::max(3.f, in.tolPx * 0.8f) || phaseT_ > 0.30f) { phase_ = FIRE; phaseT_ = 0; }
                 break;
             case FIRE: {
                 phaseT_ += dt;
                 if (!aimOn) { phase_ = RETURN; phaseT_ = 0; break; }
-                view = stepToward(errP, 0.75f, dt, in.maxStepPx);
+                view = stepToward(errP, hidden ? 0.8f : 0.75f, dt, in.maxStepPx);
                 engaged = true;
                 float hold = 0.14f;
                 if (in.afEnabled && in.afMode == 1) hold = (in.afTapMs + 20.f) / 1000.f;
-                if (phaseT_ > hold && !(in.userFiring && !in.afEnabled)) { phase_ = RETURN; phaseT_ = 0; }
+                const bool keep = in.userFiring && (hidden || !in.afEnabled);   // stay on target while the player holds fire
+                if (phaseT_ > hold && !keep) { phase_ = RETURN; phaseT_ = 0; }
                 break;
             }
             case RETURN:
                 phaseT_ += dt;
-                if (in.haveReturn) view = stepToward(retP, 0.6f, dt, in.maxStepPx);
+                if (in.haveReturn) view = stepToward(retP, hidden ? 0.75f : 0.6f, dt, in.maxStepPx);
                 engaged = true;
                 if (!in.haveReturn || len2(in.returnErr) < 3.f || phaseT_ > 0.40f) { phase_ = IDLE; cooldown_ = 0.08f; }
                 break;
@@ -118,11 +120,15 @@ Out Controller::update(const In& in0) {
 
     // ---- autofire ----
     const bool aligned = in.afAligned;
-    const bool wantFire = in.afEnabled && aligned && (in.mode != 2 || phase_ == FIRE);
+    // silent (3): the router holds the player's own fire press back while there is a target, so it is re-issued here once
+    // the real view sits on the target; without autofire that is a plain hold with no reaction delay
+    const bool userShot = hidden && !in.afEnabled;
+    const bool wantFire = hidden ? phase_ == FIRE && ((in.afEnabled && aligned) || in.userFiring)
+                                 : in.afEnabled && aligned && (in.mode != 2 || phase_ == FIRE);
     armedT_ = wantFire ? armedT_ + dt : 0.f;
-    const bool armed = wantFire && armedT_ * 1000.f >= in.afDelayMs;
+    const bool armed = wantFire && (userShot || armedT_ * 1000.f >= in.afDelayMs);
     bool fire = false;
-    if (in.afMode == 0) {
+    if (in.afMode == 0 || userShot) {
         fire = armed;
         tapT_ = in.afIntervalMs;
         tapDown_ = false;

@@ -54,13 +54,14 @@ int readFrame(float* out, int n) {
 void setInput(const Input& in) { std::lock_guard<std::mutex> lk(g_mu); g_in = in; }
 Input getInput() { std::lock_guard<std::mutex> lk(g_mu); return g_in; }
 
-void pushCommand(bool lookActive, float dx, float dy, bool fireHeld) {
+void pushCommand(bool lookActive, float dx, float dy, bool fireHeld, bool holdFire) {
     std::lock_guard<std::mutex> lk(g_mu);
     g_cmd.seq++;
     g_cmd.lookActive = lookActive ? 1.f : 0.f;
     g_cmd.dx += dx;
     g_cmd.dy += dy;
     g_cmd.fireHeld = fireHeld ? 1.f : 0.f;
+    g_cmd.holdFire = holdFire ? 1.f : 0.f;
 }
 
 void pushVibrate() { std::lock_guard<std::mutex> lk(g_mu); g_cmd.vibrate = 1.f; }

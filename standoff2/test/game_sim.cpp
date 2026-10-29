@@ -39,6 +39,7 @@ static float (*mock_material_color_r)(void*);
 static int (*mock_material_queue)(void*);
 static int (*mock_add_blind_view)();
 static float (*mock_canvasgroup_alpha_for)(const char*);
+static int (*mock_rot_writes)();
 
 static double g_clock = 100.0;
 static float g_cfg[cfg::kTotal];
@@ -94,6 +95,7 @@ int main(int argc, char** argv) {
     mock_material_queue = sym<decltype(mock_material_queue)>("mock_material_queue");
     mock_add_blind_view = sym<decltype(mock_add_blind_view)>("mock_add_blind_view");
     mock_canvasgroup_alpha_for = sym<decltype(mock_canvasgroup_alpha_for)>("mock_canvasgroup_alpha_for");
+    mock_rot_writes = sym<decltype(mock_rot_writes)>("mock_rot_writes");
 
     CHECK(il2::load(), "il2::load");
     CHECK(il2::vmReady(), "vmReady");
@@ -208,6 +210,77 @@ int main(int argc, char** argv) {
     tick(30);
     CHECK((int)F[frame::H_KILLSEQ] == k0 + 1, "kill seq %d -> %d", k0, (int)F[frame::H_KILLSEQ]);
     CHECK(F[frame::H_KILLX] > 1200 && F[frame::H_KILLX] < 1800, "kill x %g", F[frame::H_KILLX]);
+    in.userFiring = 0; bridge::setInput(in);
+
+    // ---------------- 5b. silent: the real view flicks onto the target and back, the rendered view never moves ----------------
+    // one frame = tick (Update) -> the game applies finger input 2 frames late -> canvas pass + main camera pre-cull pin the
+    // view -> render -> post-render restores (variant B has no post-render callback: the next tick restores instead)
+    struct SilentRun { float maxVis = 0, maxReal = 0, endReal = 0, espDev = 0; int fires = 0, onTarget = 0, hold = 0, ticks = 0; };
+    auto silent = [&](bool postHook, bool userPress, int total) {
+        SilentRun r;
+        mock_set_camera(0, 1.6f, 0, 0, 0);
+        std::deque<std::pair<float, float>> pq;
+        const float tYaw = std::atan2(5.f, 25.f);
+        const float expHx = 1200.f + 5.f / 25.f * kF;   // head x with the original (held) view
+        for (int t = 0; t < total; t++) {
+            in.userFiring = (userPress && t >= 10 && t < 50) ? 1.f : 0.f;
+            bridge::setInput(in);
+            tick();
+            bridge::Command c = bridge::pollCommand();
+            const float yawNow = mock_cam_yaw();
+            r.maxReal = std::max(r.maxReal, std::fabs(yawNow));
+            if (c.fireHeld > 0.5f) { r.fires++; if (std::fabs(yawNow - tYaw) < 0.006f) r.onTarget++; }
+            if (c.holdFire > 0.5f) r.hold++;
+            int it = findPlayer(tgt);
+            if (it >= 0) r.espDev = std::max(r.espDev, std::fabs(P(it, frame::P_HX) - expHx));
+            pq.push_back({c.dx, c.dy});
+            if (pq.size() > 2) { auto d = pq.front(); pq.pop_front(); mock_cam_rotate(gTrueX * d.first / kF, -gTrueY * d.second / kF); }
+            game::preRender(nullptr);
+            game::preRender(unity::Camera_get_main());   // second pre-render hook in the same frame must not stack
+            r.maxVis = std::max(r.maxVis, std::max(std::fabs(mock_cam_yaw()), std::fabs(mock_cam_pitch())));
+            if (postHook) game::postRender(unity::Camera_get_main());
+            r.ticks++;
+        }
+        tick();   // restores a pin left by the last frame of variant B
+        r.endReal = std::fabs(mock_cam_yaw());
+        return r;
+    };
+    printf("scenario: silent (camera lock)\n");
+    mock_reset(); defaults();
+    mock_add_char(0, 0, 0, "AKR");
+    tgt = mock_add_char(5, 0, 25, "M4");
+    setCfg(cfg::C_AIM_ENABLE, 1); setCfg(cfg::C_AIM_MODE, 3); setCfg(cfg::C_AIM_HITBOX, 0); setCfg(cfg::C_AIM_TRIGGER, 1); pushCfg();
+    in.userFiring = 0; bridge::setInput(in);
+    tick(30);
+    const int writes0 = mock_rot_writes();
+    for (int variant = 0; variant < 2; variant++) {
+        SilentRun r = silent(variant == 0, true, 140);
+        printf("  %s: real view peaked %.2f deg (target %.2f), rendered view max %.3f deg, back to %.3f deg, fire %d/%d on target, esp drift %.1f px, hold-fire %d/%d\n",
+               variant == 0 ? "post-render restore" : "tick restore", r.maxReal * 57.2958f, std::atan2(5.f, 25.f) * 57.2958f, r.maxVis * 57.2958f,
+               r.endReal * 57.2958f, r.onTarget, r.fires, r.espDev, r.hold, r.ticks);
+        CHECK(r.maxReal > 0.18f, "real view never reached the target: %.3f rad", r.maxReal);
+        CHECK(r.maxVis < 0.005f, "rendered view moved %.4f rad", r.maxVis);
+        CHECK(r.endReal < 0.005f, "real view did not return: %.4f rad", r.endReal);
+        CHECK(r.fires >= 20 && r.onTarget == r.fires, "fire %d, on target %d", r.fires, r.onTarget);
+        CHECK(r.espDev < 4.f, "ESP followed the hidden flick: %.1f px", r.espDev);
+        CHECK(r.hold == r.ticks, "hold-fire must cover every tick with a target: %d/%d", r.hold, r.ticks);
+    }
+    CHECK(mock_rot_writes() > writes0, "camera was never pinned");
+    // no fire press: nothing engages and the camera is never touched
+    {
+        const int w = mock_rot_writes();
+        SilentRun r = silent(true, false, 40);
+        CHECK(r.fires == 0 && r.maxReal < 1e-4f && mock_rot_writes() == w, "idle silent touched the view: fires %d real %.5f writes %d", r.fires, r.maxReal, mock_rot_writes() - w);
+    }
+    // autofire, always on: shoots by itself, still invisible
+    setCfg(cfg::C_AIM_TRIGGER, 0); setCfg(cfg::C_AF_ENABLE, 1); setCfg(cfg::C_AF_MODE, 0); pushCfg();
+    {
+        SilentRun r = silent(true, false, 60);
+        printf("  autofire: fire %d/%d on target, rendered view max %.3f deg\n", r.onTarget, r.fires, r.maxVis * 57.2958f);
+        CHECK(r.fires > 0 && r.onTarget == r.fires, "autofire silent: fire %d on target %d", r.fires, r.onTarget);
+        CHECK(r.maxVis < 0.005f, "rendered view moved %.4f rad", r.maxVis);
+    }
+    setCfg(cfg::C_AIM_ENABLE, 0); setCfg(cfg::C_AF_ENABLE, 0); setCfg(cfg::C_AIM_MODE, 0); pushCfg();
     in.userFiring = 0; bridge::setInput(in);
 
     // ---------------- 6. chams ----------------
