@@ -13,7 +13,7 @@ public class Main implements ClientModInitializer {
     private static KeyBinding toggleKey;
 
     public void onInitializeClient() {
-        guiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("GUI", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_SHIFT, "RAGE"));
+        guiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("GUI", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_INSERT, "RAGE"));
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("Toggle", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_R, "RAGE"));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
