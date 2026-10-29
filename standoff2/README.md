@@ -17,9 +17,22 @@
 | No recoil | гасим `RecoilState` в `WeaponContext` после пересчёта, `RecoilMult` слайдером |
 | Chams | материалы `OutlineMaterial`/`UntouchableMaterial` из `CharacterBindings` + render queue (видно через стены) |
 | Third person | камера отводится назад после кадрового тика, с упором в геометрию, плюс включение своей модели |
-| Меню | ImGui поверх `eglSwapBuffers`, вкладки ESP / AIMBOT / FIRE / MISC / CONFIG, конфиг в JSON |
+| Меню | ImGui поверх `eglSwapBuffers` в стиле neverlose: сайдбар с иконками, панели-группы, свои чекбоксы/комбо/слайдеры, вшитый Roboto. Вкладки Ragebot / Legitbot / Trigger / Visuals / World / Misc / Configs |
+| Ватермарка | плашка в углу в том же стиле, она же кнопка открытия меню |
 
 Ничего не включено на старте, кроме ESP.
+
+![menu](docs/menu-ragebot.png)
+
+## Превью меню без телефона
+
+Вёрстка меню гоняется на хосте: тот же `ui.cpp` собирается с `-DRM_PREVIEW`, кадр
+растеризуется софтово и пишется в png.
+
+```bash
+./tools/preview/build_preview.sh 3 2340 1080   # вкладка, ширина, высота
+# -> /tmp/rm-preview/preview-3.png
+```
 
 ## Сборка
 

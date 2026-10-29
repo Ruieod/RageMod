@@ -1,0 +1,3 @@
+Roboto-Medium.ttf — Apache License 2.0, Google Fonts.
+Файл взят из ocornut/imgui v1.89.9 (misc/fonts), шрифт не менялся.
+https://www.apache.org/licenses/LICENSE-2.0

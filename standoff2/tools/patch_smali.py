@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Вставляет System.loadLibrary("ragemod") в статический конструктор точки входа apk.
 
-Запускается по каталогу, который распаковал apktool. Цель выбирается так:
-application android:name из манифеста, а если своего Application нет — launcher-активити.
+Запускается по каталогу, который распаковал apktool. Цель ищется по порядку:
+  1. com.unity3d.player.UnityPlayer — есть в любой Unity-игре и грузится до движка,
+     манифест при этом парсить не нужно (а с apktool -r он остаётся бинарным);
+  2. application android:name из манифеста;
+  3. launcher-активити.
 Идемпотентно: второй запуск ничего не меняет.
 """
 import os
@@ -31,7 +34,10 @@ LOAD_BODY = f'''
 '''
 
 
-def entry_class(decoded):
+UNITY_PLAYER = 'com.unity3d.player.UnityPlayer'
+
+
+def manifest_class(decoded):
     tree = ET.parse(os.path.join(decoded, 'AndroidManifest.xml'))
     app = tree.getroot().find('application')
     if app is None:
@@ -48,6 +54,15 @@ def entry_class(decoded):
             if 'android.intent.action.MAIN' in actions and 'android.intent.category.LAUNCHER' in cats:
                 return activity.get(ANDROID + 'name')
     raise SystemExit('не нашли ни своего Application, ни launcher-активити')
+
+
+def entry_class(decoded):
+    try:
+        smali_path(decoded, UNITY_PLAYER)
+        return UNITY_PLAYER
+    except SystemExit:
+        pass
+    return manifest_class(decoded)
 
 
 def smali_path(decoded, cls):

@@ -53,6 +53,8 @@ struct Config {
     // MISC
     bool draw_fov = false;
     bool draw_debug = false;
+    bool watermark = true;
+    float menu_scale = 1.f;
 
     // ввод
     int  touch_source = 0;           // 0 = UnityEngine.Input (без рута), 1 = /dev/input (root)

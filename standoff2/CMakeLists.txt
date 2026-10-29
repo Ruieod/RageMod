@@ -6,6 +6,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(IMGUI ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
 
+# шрифт меню вшиваем в либу: на телефоне читать его неоткуда
+set(FONT_H ${CMAKE_CURRENT_BINARY_DIR}/generated/roboto_font.h)
+add_custom_command(
+    OUTPUT ${FONT_H}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/bin2header.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/font/Roboto-Medium.ttf
+            ${FONT_H} kFontRoboto
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/font/Roboto-Medium.ttf
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/bin2header.py
+    COMMENT "font -> roboto_font.h")
+
 add_library(ragemod SHARED
     src/main.cpp
     src/il2cpp.cpp
@@ -21,9 +33,12 @@ add_library(ragemod SHARED
     ${IMGUI}/imgui_tables.cpp
     ${IMGUI}/imgui_widgets.cpp
     ${IMGUI}/backends/imgui_impl_opengl3.cpp
+    ${FONT_H}
 )
 
-target_include_directories(ragemod PRIVATE src ${IMGUI} ${CMAKE_CURRENT_SOURCE_DIR}/third_party/zygisk)
+target_include_directories(ragemod PRIVATE src ${IMGUI}
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/zygisk
+    ${CMAKE_CURRENT_BINARY_DIR}/generated)
 
 target_compile_definitions(ragemod PRIVATE
     IMGUI_IMPL_OPENGL_ES3
