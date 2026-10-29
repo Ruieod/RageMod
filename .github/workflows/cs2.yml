@@ -1,0 +1,18 @@
+name: CS2
+on:
+  push:
+    paths:
+      - 'cs2/**'
+      - '.github/workflows/cs2.yml'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mingw-w64 ninja-build
+      - run: ./cs2/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ragemod_cs2
+          path: cs2/build/win64/ragemod_cs2.dll
+          retention-days: 90
