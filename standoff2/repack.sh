@@ -2,7 +2,8 @@
 # Без рута: вшиваем libragemod.so в apk игры и добавляем его загрузку в точку входа.
 # Нужны: apktool, java, apksigner (или jarsigner), python3, adb (для --device).
 #
-#   ./repack.sh --device              вытащить сплиты с подключённого телефона и пропатчить
+#   ./repack.sh --device              вытащить сплиты с устройства и пропатчить
+#                                     (с ПК — через adb, из Termux на самом телефоне — через pm)
 #   ./repack.sh base.apk [split...]   то же по локальным файлам
 #
 # Все сплиты подписываются одним ключом — иначе install-multiple их не примет.
@@ -19,20 +20,40 @@ command -v apktool >/dev/null || { echo "нет apktool"; exit 1; }
 command -v java >/dev/null || { echo "нет java"; exit 1; }
 
 SO=build/arm64/libragemod.so
-[ -f "$SO" ] || ./build.sh
+if [ ! -f "$SO" ]; then
+  if [ -n "${ANDROID_NDK:-}${ANDROID_NDK_HOME:-}" ]; then
+    ./build.sh
+  else
+    echo "нет $SO."
+    echo "Положи готовую либу в $SO (артефакт CI или из чата) либо собери: ANDROID_NDK=... ./build.sh"
+    exit 1
+  fi
+fi
 
 rm -rf "$WORK" dist
 mkdir -p "$WORK/orig" dist
 
 APKS=()
+VIA_ADB=0
 if [ "${1:-}" = "--device" ]; then
-  command -v adb >/dev/null || { echo "нет adb"; exit 1; }
-  echo "== тянем установленные apk с телефона (рут не нужен)"
-  mapfile -t paths < <(adb shell pm path "$PKG" | tr -d '\r' | sed 's/^package://')
-  [ "${#paths[@]}" -gt 0 ] || { echo "игра не установлена на устройстве"; exit 1; }
+  if command -v adb >/dev/null; then
+    VIA_ADB=1
+    echo "== тянем установленные apk через adb (рут не нужен)"
+    mapfile -t paths < <(adb shell pm path "$PKG" | tr -d '\r' | sed 's/^package://')
+  elif command -v pm >/dev/null; then
+    echo "== тянем установленные apk через pm (Termux на самом телефоне, рут не нужен)"
+    mapfile -t paths < <(pm path "$PKG" | tr -d '\r' | sed 's/^package://')
+  else
+    echo "нет ни adb, ни pm"; exit 1
+  fi
+  [ "${#paths[@]}" -gt 0 ] || { echo "игра не установлена"; exit 1; }
   for p in "${paths[@]}"; do
     name=$(basename "$p")
-    adb pull "$p" "$WORK/orig/$name" >/dev/null
+    if [ "$VIA_ADB" = 1 ]; then
+      adb pull "$p" "$WORK/orig/$name" >/dev/null
+    else
+      cp "$p" "$WORK/orig/$name"
+    fi
     echo "   $name"
     APKS+=("$WORK/orig/$name")
   done
@@ -92,12 +113,21 @@ for a in "${APKS[@]}"; do
 done
 
 ls -la dist/
+echo
+echo "Подпись другая, поэтому старую установку надо снести — данные игры уйдут."
+if command -v adb >/dev/null; then
 cat <<NOTE
-
-Ставить так (подпись другая, поэтому старую версию придётся снести — данные игры уйдут):
+Ставить так:
   adb uninstall $PKG
   adb install-multiple ${OUT[*]}
-
-Проверка: adb logcat -s RageMod  -> "RageMod up (hooks 7/7)"
+NOTE
+else
+cat <<NOTE
+Ставить сплиты без adb: снести игру вручную, потом скормить всё из dist/
+сплит-установщику (SAI / Split APKs Installer) — обычным тапом по apk сплиты не ставятся.
+NOTE
+fi
+cat <<'NOTE'
+Проверка: logcat -s RageMod  -> "RageMod up (hooks 7/7)"
 Меню: кнопка RAGE в левом верхнем углу.
 NOTE
