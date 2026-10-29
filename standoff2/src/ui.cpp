@@ -464,6 +464,18 @@ void tab_configs(int col) {
         group_end();
         return;
     }
+    group_begin("Game hooks");
+    hint("Хуки патчат код игры. На старте выключены: патч функции, которую в этот "
+         "момент выполняет другой поток, роняет процесс. Жми, когда игра загрузилась.");
+    if (!mods::installed()) {
+        if (wide_button("Enable game hooks")) mods::install();
+    } else {
+        char hb[48];
+        snprintf(hb, sizeof(hb), "%d/7", mods::installed_count());
+        info_row("Installed", hb, mods::installed_count() == 7 ? th::accent : th::text);
+    }
+    group_end();
+
     group_begin("Status");
     char buf[64];
     snprintf(buf, sizeof(buf), "%d/7", mods::installed_count());

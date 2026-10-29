@@ -149,9 +149,10 @@ const char* class_name(const void* obj) {
     void* klass = ptr(obj, off::il2::Object_klass);
     if (!readable(klass, 0x20)) return nullptr;
     const char* name = (const char*)ptr(klass, off::il2::Class_name);
-    if (!readable(name, 2)) return nullptr;
+    // одна проверка на весь буфер: раньше тут был readable() на каждый байт,
+    // то есть сотни походов в /proc/self/maps под мьютексом на каждый кадр
+    if (!readable(name, 64)) return nullptr;
     for (int i = 0; i < 64; i++) {
-        if (!readable(name + i, 1)) return nullptr;
         char c = name[i];
         if (c == 0) return i ? name : nullptr;
         if ((unsigned char)c < 0x20 || (unsigned char)c > 0x7e) return nullptr;

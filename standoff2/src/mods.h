@@ -1,7 +1,8 @@
 #pragma once
 
 namespace mods {
-bool install();          // ставит игровые хуки
+bool install();          // ставит игровые хуки (патчит код игры — по кнопке из меню)
+bool installed();        // уже стоят?
 int installed_count();
 
 // имена input-экшенов, которые игра реально запрашивала — чтобы подобрать экшен выстрела

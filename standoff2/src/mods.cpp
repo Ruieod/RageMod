@@ -185,7 +185,10 @@ void hk_rays(void* self, void* wctx, void* span_ptr, long span_len, void* method
 
 } // namespace
 
+bool installed() { return g_installed > 0; }
+
 bool install() {
+    if (g_installed > 0) return true;   // второй раз не патчим
     struct Entry {
         const char* name;
         uintptr_t rva;
