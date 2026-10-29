@@ -6,6 +6,11 @@ DLL под `cs2.exe`. Оффсеты не хардкожены руками: `to
 
 ![menu](docs/menu-ragebot.png)
 
+Ватермарка и бинды:
+
+![watermark](docs/hud-watermark.png)
+![binds](docs/hud-binds.png)
+
 ## Что внутри
 
 | | |

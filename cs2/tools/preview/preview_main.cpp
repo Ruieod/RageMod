@@ -150,6 +150,11 @@ int main(int argc, char** argv) {
 
     ui::toggle_menu();
     ui::preview_set_tab(tab);
+    if (tab == 1) {                       // вкладка Trigger: показываем бинды «в работе»
+        g_cfg.trigger_bind.key = 0x06;    // mouse5
+        g_cfg.bhop_bind.key = 0x20;       // space
+        ui::preview_wait_bind(&g_cfg.trigger_bind);
+    }
     for (int i = 0; i < 2; i++) {            // второй кадр: hover/active устаканились
         ImGui::NewFrame();
         ui::frame(W, H, 240.f);

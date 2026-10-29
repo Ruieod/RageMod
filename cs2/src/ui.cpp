@@ -149,14 +149,12 @@ void bind_dot(ImDrawList* dl, ImVec2 c, Bind* b) {
     ImU32 col = waiting ? th::accent : (b->key ? th::text_dim : th::control);
     dl->AddCircle(c, r, col, 0, 1.4f * S);
     if (b->key) dl->AddCircleFilled(c, r * 0.42f, col);
-    if (waiting) {
-        const char* t = "...";
-        ImVec2 ts = ImGui::CalcTextSize(t);
-        dl->AddText(ImVec2(c.x - ts.x - 9.f * S, c.y - ts.y * 0.5f), th::accent, t);
-    } else if (b->key && hov) {
-        const char* t = config::key_name(b->key);
-        ImVec2 ts = ImGui::CalcTextSize(t);
-        dl->AddText(ImVec2(c.x - ts.x - 9.f * S, c.y - ts.y * 0.5f), th::text_dim, t);
+
+    const char* label = waiting ? "press key" : (b->key ? config::key_name(b->key) : (hov ? "bind" : nullptr));
+    if (label) {
+        ImVec2 ts = ImGui::CalcTextSize(label);
+        ImU32 lc = waiting ? th::accent : (hov ? th::text : th::caption);
+        dl->AddText(ImVec2(c.x - ts.x - 9.f * S, c.y - ts.y * 0.5f), lc, label);
     }
 }
 
@@ -901,6 +899,7 @@ void frame(int w, int h, float fps) {
 
 #ifdef RM_PREVIEW
 void preview_set_tab(int tab) { g_tab = tab; }
+void preview_wait_bind(Bind* b) { g_binding = b; }
 #endif
 
 bool menu_open() { return g_open; }

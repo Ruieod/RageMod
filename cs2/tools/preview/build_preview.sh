@@ -11,12 +11,12 @@ TAB="${1:-0}"; W="${2:-1920}"; H="${3:-1080}"
 python3 $ROOT/../standoff2/tools/bin2header.py $ROOT/../standoff2/third_party/font/Roboto-Medium.ttf \
   $OUT/roboto_font.h kFontRoboto
 
+rm -f $OUT/preview                 # иначе при ошибке компиляции тихо запустится старый бинарь
 clang++ -std=c++17 -O1 -fno-exceptions -fno-rtti -DRM_PREVIEW \
   -I$ROOT/src -I$IMGUI -I$OUT \
   preview_main.cpp $ROOT/src/ui.cpp \
   $IMGUI/imgui.cpp $IMGUI/imgui_draw.cpp $IMGUI/imgui_tables.cpp $IMGUI/imgui_widgets.cpp \
-  -o $OUT/preview 2>&1 | grep -E 'error' | head -20 || true
-[ -x $OUT/preview ] || { echo "сборка превью не удалась"; exit 1; }
+  -o $OUT/preview || { echo "сборка превью не удалась"; exit 1; }
 
 $OUT/preview "$W" "$H" "$TAB" "$OUT/preview.ppm"
 python3 - "$OUT/preview.ppm" "$OUT/cs2-menu-$TAB.png" <<'PY'
