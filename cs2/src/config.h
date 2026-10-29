@@ -28,6 +28,16 @@ struct Config {
     bool trigger_team_check = true;
     bool trigger_scoped_only = false;
 
+    // MOVEMENT
+    bool bhop = false;
+    Bind bhop_bind{0x20, 0};         // по умолчанию пока зажат пробел
+
+    // HIT / KILL эффекты
+    bool hitmarker = true;
+    bool hitmarker_sound = false;
+    float hitmarker_size = 9.f;
+    bool killeffect = true;
+
     // VISUALS / esp
     bool esp = true;
     bool esp_box = true;
@@ -40,7 +50,10 @@ struct Config {
     bool esp_visible_only = false;
     float esp_max_dist = 120.f;      // метры
     bool glow = false;
+    int glow_type = 3;               // CGlowProperty::m_iGlowType
     float glow_color[3] = {0.24f, 0.49f, 1.f};
+    float glow_color_visible[3] = {1.f, 0.35f, 0.75f};
+    bool glow_split_visible = true;  // видимым один цвет, за стеной другой
 
     // WORLD
     bool night = false;              // затемнение карты

@@ -825,7 +825,7 @@ void rebuild_font() {
     cfg.OversampleH = 2;
     cfg.OversampleV = 1;
     cfg.PixelSnapH = true;
-    static const ImWchar ranges[] = {0x0020, 0x00FF, 0x0400, 0x044F, 0x2010, 0x2027, 0};
+    static const ImWchar ranges[] = {0x0020, 0x00FF, 0x0400, 0x045F, 0x2010, 0x2027, 0};
     io.Fonts->AddFontFromMemoryTTF((void*)kFontRoboto, (int)kFontRoboto_size, 15.f * S, &cfg, ranges);
     io.Fonts->Build();
     ImGui_ImplOpenGL3_DestroyFontsTexture();

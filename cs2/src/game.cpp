@@ -20,6 +20,17 @@ struct Target {
 };
 Target g_target;
 
+// здоровье врагов с прошлого кадра: по его просадке ловим попадания
+struct HpTrack {
+    uintptr_t pawn = 0;
+    int hp = 0;
+};
+HpTrack g_hp[kMaxPlayers];
+int g_hp_n = 0;
+HitEvent g_last_hit;
+int g_last_shots = 0;
+int64_t g_last_shot_ts = 0;
+
 int64_t now_ms() {
     static LARGE_INTEGER freq{};
     if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
@@ -56,16 +67,17 @@ bool spotted(sdk::Entity e) {
     return mem::read<bool>(st + off::EntitySpottedState_t::m_bSpotted);
 }
 
-void apply_glow(sdk::Entity e, bool enemy) {
+void apply_glow(sdk::Entity e, bool enemy, bool visible) {
     if (!g_cfg.glow) return;
     if (g_cfg.esp_team_check && !enemy) return;
-    uintptr_t glow = e.ptr + off::C_BaseModelEntity::m_Glow;
-    uint8_t r = (uint8_t)(g_cfg.glow_color[0] * 255.f);
-    uint8_t g = (uint8_t)(g_cfg.glow_color[1] * 255.f);
-    uint8_t b = (uint8_t)(g_cfg.glow_color[2] * 255.f);
+    const float* c = (g_cfg.glow_split_visible && visible) ? g_cfg.glow_color_visible : g_cfg.glow_color;
+    uint8_t r = (uint8_t)(c[0] * 255.f);
+    uint8_t g = (uint8_t)(c[1] * 255.f);
+    uint8_t b = (uint8_t)(c[2] * 255.f);
     uint32_t col = (uint32_t)r | ((uint32_t)g << 8) | ((uint32_t)b << 16) | (0xFFu << 24);
+    uintptr_t glow = e.ptr + off::C_BaseModelEntity::m_Glow;
     mem::write<uint32_t>(glow + off::CGlowProperty::m_glowColorOverride, col);
-    mem::write<int>(glow + off::CGlowProperty::m_iGlowType, 3);
+    mem::write<int>(glow + off::CGlowProperty::m_iGlowType, g_cfg.glow_type);
     mem::write<bool>(glow + off::CGlowProperty::m_bGlowing, true);
 }
 
@@ -122,6 +134,63 @@ void run_aim(sdk::Entity local, const Vec3& eye) {
     Vec3 step{cur.x + norm_angle(want.x - cur.x) / smooth, cur.y + norm_angle(want.y - cur.y) / smooth, 0.f};
     sdk::set_view_angles(step);
     if (g_cfg.aim_auto_fire && g_target.fov < g_cfg.aim_fov * 0.3f) sdk::press_attack(true);
+}
+
+void press_jump(bool down) {
+    mem::write<int>(sdk::g_client + off::buttons::jump + 0x8, down ? 0x5 : 0x4);
+}
+
+// Бхоп: прыжок отпускаем в воздухе и жмём ровно в кадр касания земли.
+// Ничего нового в процесс не тащим — пишем ту же структуру кнопки, что и триггер.
+void run_bhop(sdk::Entity local) {
+    static bool held = false;
+    bool on = config::bind_active(g_cfg.bhop_bind, g_cfg.bhop);
+    if (!on) {
+        if (held) {
+            press_jump(false);
+            held = false;
+        }
+        return;
+    }
+    uint32_t flags = mem::read<uint32_t>(local.ptr + off::C_BaseEntity::m_fFlags);
+    bool on_ground = (flags & (1u << 0)) != 0;
+    press_jump(on_ground);
+    held = true;
+}
+
+// Попадания считаем по просадке HP врагов, авторство — по своему счётчику выстрелов.
+void track_hits(sdk::Entity local, const Frame& f) {
+    int shots = mem::read<int>(local.ptr + off::C_CSPlayerPawn::m_iShotsFired);
+    int64_t now = now_ms();
+    if (shots != g_last_shots) {
+        g_last_shots = shots;
+        g_last_shot_ts = now;
+    }
+
+    HpTrack next[kMaxPlayers];
+    int next_n = 0;
+    for (int i = 0; i < f.count && next_n < kMaxPlayers; i++) {
+        const PlayerView& p = f.players[i];
+        if (!p.enemy) continue;
+        int prev = -1;
+        for (int k = 0; k < g_hp_n; k++) {
+            if (g_hp[k].pawn == p.pawn) {
+                prev = g_hp[k].hp;
+                break;
+            }
+        }
+        // стреляли меньше секунды назад — считаем урон своим
+        if (prev > 0 && p.hp < prev && now - g_last_shot_ts < 1000) {
+            g_last_hit.ts = now;
+            g_last_hit.damage = prev - p.hp;
+            g_last_hit.kill = p.hp <= 0;
+        }
+        next[next_n].pawn = p.pawn;
+        next[next_n].hp = p.hp;
+        next_n++;
+    }
+    std::memcpy(g_hp, next, sizeof(HpTrack) * (size_t)next_n);
+    g_hp_n = next_n;
 }
 
 void run_trigger(sdk::Entity local) {
@@ -212,7 +281,7 @@ void tick(int sw, int sh) {
         Vec3 origin = pawn.origin();
         p.dist = (origin - eye).len() * 0.0254f;   // юниты -> метры
 
-        apply_glow(pawn, p.enemy);
+        apply_glow(pawn, p.enemy, p.visible);
 
         // кости и бокс
         float minx = 1e9f, maxx = -1e9f, miny = 1e9f, maxy = -1e9f;
@@ -276,7 +345,10 @@ void tick(int sw, int sh) {
 
     run_aim(local, eye);
     run_trigger(local);
+    run_bhop(local);
     apply_skin(local);
+    track_hits(local, f);
+    f.last_hit = g_last_hit;
 
     g_frame = f;
 }

@@ -372,6 +372,11 @@ void tab_trigger(int col) {
     slider_int_row("Delay (ms)", &g_cfg.trigger_delay_ms, 0, 250);
     hint("Цель под прицелом игра считает сама (m_iIDEntIndex), свой рейкаст не нужен.");
     group_end();
+
+    group_begin("Movement");
+    toggle_row("Bunny hop", &g_cfg.bhop, &g_cfg.bhop_bind);
+    hint("Прыжок отпускается в воздухе и жмётся в кадр касания земли.");
+    group_end();
 }
 
 void tab_players(int col) {
@@ -384,6 +389,12 @@ void tab_players(int col) {
         toggle_row("Name", &g_cfg.esp_name);
         toggle_row("Distance", &g_cfg.esp_dist);
         group_end();
+    group_begin("Hit effects");
+    toggle_row("Hitmarker", &g_cfg.hitmarker);
+    slider_row("Size", &g_cfg.hitmarker_size, 4.f, 20.f, "%.0f");
+    toggle_row("Kill effect", &g_cfg.killeffect);
+    hint("Урон ловим по просадке HP врага, авторство — по своему счётчику выстрелов.");
+    group_end();
         return;
     }
     group_begin("Filters");
@@ -394,9 +405,14 @@ void tab_players(int col) {
 
     group_begin("Glow");
     toggle_row("Enabled", &g_cfg.glow);
-    color_row("Color", g_cfg.glow_color);
-    hint("Пишем CGlowProperty игрока — рисует сам движок.");
+    static const char* gtypes[] = {"0", "1", "2", "3 (through walls)"};
+    combo_row("Type", &g_cfg.glow_type, gtypes, 4);
+    color_row("Occluded", g_cfg.glow_color);
+    toggle_row("Split visible", &g_cfg.glow_split_visible);
+    color_row("Visible", g_cfg.glow_color_visible);
+    hint("Пишем CGlowProperty игрока — подсветку рисует сам движок.");
     group_end();
+
 }
 
 void tab_world(int col) {
@@ -672,6 +688,66 @@ void draw_menu() {
     ImGui::PopStyleVar(2);
 }
 
+// хитмаркер и килл-эффект: крестик в центре, гаснет сам
+void draw_hit_effects() {
+    const game::Frame& f = game::frame();
+    if (f.last_hit.ts == 0) return;
+
+    static int64_t last_seen = 0;
+    static bool beeped = false;
+    if (f.last_hit.ts != last_seen) {
+        last_seen = f.last_hit.ts;
+        beeped = false;
+    }
+
+    // возраст события считаем по времени imgui, а не лезем в winapi из ui
+    static float age = 10.f;
+    static int64_t age_for = 0;
+    if (age_for != f.last_hit.ts) {
+        age_for = f.last_hit.ts;
+        age = 0.f;
+    } else {
+        age += ImGui::GetIO().DeltaTime;
+    }
+
+    const float life = f.last_hit.kill ? 1.1f : 0.35f;
+    if (age > life) return;
+    float k = 1.f - age / life;
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    ImVec2 c(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f);
+
+    if (g_cfg.hitmarker) {
+        float r = g_cfg.hitmarker_size * S * (f.last_hit.kill ? 1.6f : 1.f);
+        float gap = r * 0.45f;
+        ImU32 col = f.last_hit.kill ? IM_COL32(255, 60, 60, (int)(255 * k))
+                                    : IM_COL32(255, 255, 255, (int)(235 * k));
+        float t = 1.8f * S;
+        dl->AddLine(ImVec2(c.x - r, c.y - r), ImVec2(c.x - gap, c.y - gap), col, t);
+        dl->AddLine(ImVec2(c.x + gap, c.y + gap), ImVec2(c.x + r, c.y + r), col, t);
+        dl->AddLine(ImVec2(c.x - r, c.y + r), ImVec2(c.x - gap, c.y + gap), col, t);
+        dl->AddLine(ImVec2(c.x + gap, c.y - gap), ImVec2(c.x + r, c.y - r), col, t);
+    }
+
+    if (g_cfg.killeffect && f.last_hit.kill) {
+        const char* txt = "KILL";
+        ImVec2 ts = ImGui::CalcTextSize(txt);
+        float y = c.y - 44.f * S - (1.f - k) * 18.f * S;
+        ImU32 col = IM_COL32(255, 70, 70, (int)(255 * k));
+        dl->AddText(ImVec2(c.x - ts.x * 0.5f + 1.f, y + 1.f), IM_COL32(0, 0, 0, (int)(200 * k)), txt);
+        dl->AddText(ImVec2(c.x - ts.x * 0.5f, y), col, txt);
+    } else if (g_cfg.hitmarker && f.last_hit.damage > 0) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d", f.last_hit.damage);
+        ImVec2 ts = ImGui::CalcTextSize(buf);
+        float y = c.y - 34.f * S - (1.f - k) * 10.f * S;
+        dl->AddText(ImVec2(c.x - ts.x * 0.5f + 1.f, y + 1.f), IM_COL32(0, 0, 0, (int)(190 * k)), buf);
+        dl->AddText(ImVec2(c.x - ts.x * 0.5f, y), IM_COL32(255, 210, 90, (int)(240 * k)), buf);
+    }
+    (void)beeped;
+}
+
 void draw_watermark() {
     if (!g_cfg.watermark) return;
     ImGuiIO& io = ImGui::GetIO();
@@ -810,7 +886,7 @@ void init_style(float display_h) {
     cfg.OversampleH = 2;
     cfg.OversampleV = 1;
     cfg.PixelSnapH = true;
-    static const ImWchar ranges[] = {0x0020, 0x00FF, 0x0400, 0x044F, 0x2010, 0x2027, 0};
+    static const ImWchar ranges[] = {0x0020, 0x00FF, 0x0400, 0x045F, 0x2010, 0x2027, 0};
     io.Fonts->AddFontFromMemoryTTF((void*)kFontRoboto, (int)kFontRoboto_size, 15.f * S, &cfg, ranges);
     io.Fonts->Build();
 }
@@ -818,6 +894,7 @@ void init_style(float display_h) {
 void frame(int w, int h, float fps) {
     g_fps = fps;
     draw_esp();
+    draw_hit_effects();
     draw_watermark();
     if (g_open) draw_menu();
 }

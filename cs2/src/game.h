@@ -34,6 +34,13 @@ struct BoneLink {
 extern const BoneLink kBoneLinks[];
 extern const int kBoneLinkCount;
 
+// событие попадания/убийства для эффектов на экране
+struct HitEvent {
+    int64_t ts = 0;      // когда случилось
+    int damage = 0;
+    bool kill = false;
+};
+
 struct Frame {
     int count = 0;
     PlayerView players[kMaxPlayers];
@@ -42,6 +49,7 @@ struct Frame {
     Vec2 target_screen;
     int screen_w = 0, screen_h = 0;
     float fps = 0.f;
+    HitEvent last_hit;
 };
 
 void tick(int screen_w, int screen_h);   // игровая логика, зовётся из Present
