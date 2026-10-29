@@ -24,20 +24,60 @@
 ## Сборка
 
 ```bash
-ANDROID_NDK=/path/to/android-ndk-r27c ./build.sh
-# -> build/arm64/libragemod.so
+ANDROID_NDK=/path/to/android-ndk-r27c ./build.sh          # -> build/arm64/libragemod.so
+ANDROID_NDK=/path/to/android-ndk-r27c ./pack_zygisk.sh    # -> dist/ragemod-zygisk.zip
 ```
 
-## Загрузка
+## Как запустить
 
-Любой инжектор в процесс игры: Zygisk-модуль, ptrace-инжектор, frida gadget, репак apk.
-Конструктор либы поднимает свой поток, ждёт маппинг `libunity.so`, через 4 секунды ставит хуки.
+Железо: нужен **arm64 Android**. Либа arm64-v8a, и на BlueStacks Pie64 игра идёт через
+ARM-трансляцию — инжект туда отдельный геморрой. Рутованный телефон или arm64-образ
+эмулятора (AVD arm64, Waydroid arm64) проще на порядок.
+
+**Путь 1 — Zygisk-модуль (так и задумано)**
+
+1. Magisk 24+, Zygisk включён.
+2. `./pack_zygisk.sh` → `dist/ragemod-zygisk.zip`.
+3. Magisk → Modules → Install from storage → выбрать zip → reboot.
+4. Запустить игру, проверить `adb logcat -s RageMod`: должно быть `RageMod up (hooks 6/6)`.
+
+Та же либа и есть модуль: Magisk грузит её в каждый форк зиготы, в чужих процессах она
+сразу просит `DLCLOSE_MODULE_LIBRARY` и ничего не делает, поднимается только в
+`com.axlebolt.standoff2`.
+
+**Путь 2 — инжект в живой процесс (root shell)**
+
+```bash
+adb push build/arm64/libragemod.so /data/local/tmp/
+adb shell su -c 'chmod 644 /data/local/tmp/libragemod.so'
+# любым arm64 dlopen-инжектором:
+adb shell su -c './inject -p $(pidof com.axlebolt.standoff2) -l /data/local/tmp/libragemod.so'
+```
+
+Или через frida:
+
+```bash
+frida -U -n com.axlebolt.standoff2 -e 'Module.load("/data/local/tmp/libragemod.so")'
+```
+
+Конструктор либы сам сверяет `/proc/self/cmdline` с именем пакета, так что в чужой процесс
+её грузить безопасно — просто ничего не произойдёт.
+
+**Путь 3 — без рута, репак apk**
+
+Положить `.so` в `lib/arm64-v8a/`, добавить `System.loadLibrary("ragemod")` в
+`UnityPlayerActivity` (smali), подписать, поставить. Без рута не будет `/dev/input`, то есть
+меню не нажимается: всё только через файл конфига, а править его без рута неудобно.
+Рабочий вариант, но для настройки всё равно нужен рут.
+
+## Управление
 
 - меню: кнопка `RAGE` в левом верхнем углу или **VOLUME DOWN**
-- ввод для меню читается с `/dev/input` — **нужен root**; без root чит работает, но управляется
-  только файлом конфига `/data/data/com.axlebolt.standoff2/files/ragemod.json`
-- если тач в меню смещён/перевёрнут — вкладка MISC, флаги `Swap XY / Invert X / Invert Y`
-- лог: `logcat -s RageMod`
+- ввод меню читается с `/dev/input` — **нужен root**; без него чит работает, но управляется
+  только файлом `/data/data/com.axlebolt.standoff2/files/ragemod.json`
+- тач смещён или перевёрнут — вкладка MISC, флаги `Swap XY / Invert X / Invert Y`
+- лог: `adb logcat -s RageMod`
+- после патча игры хуки не встанут: смотри раздел «Под новый патч игры»
 
 `// у SO2 свой анти-чит: внешнее чтение памяти он переживает, инжект в процесс — риск аккаунта.`
 

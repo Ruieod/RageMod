@@ -15,6 +15,7 @@ add_library(ragemod SHARED
     src/config.cpp
     src/touch.cpp
     src/ui.cpp
+    src/zygisk_entry.cpp
     ${IMGUI}/imgui.cpp
     ${IMGUI}/imgui_draw.cpp
     ${IMGUI}/imgui_tables.cpp
@@ -22,7 +23,7 @@ add_library(ragemod SHARED
     ${IMGUI}/backends/imgui_impl_opengl3.cpp
 )
 
-target_include_directories(ragemod PRIVATE src ${IMGUI})
+target_include_directories(ragemod PRIVATE src ${IMGUI} ${CMAKE_CURRENT_SOURCE_DIR}/third_party/zygisk)
 
 target_compile_definitions(ragemod PRIVATE
     IMGUI_IMPL_OPENGL_ES3
