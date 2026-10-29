@@ -1,0 +1,88 @@
+name: Standoff 2 mod
+on:
+  push:
+    paths: ['standoff2/**', '.github/workflows/standoff2.yml']
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: 'Direct link to the game: .apk / .xapk / .apks (arm64). Empty = only build the payload'
+        required: false
+        default: ''
+      extra_urls:
+        description: 'Extra split .apk links, space separated (only if the game came as loose splits)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install lief
+
+      - name: Host tests (aim controller, touch router, game layer vs mock Unity)
+        working-directory: standoff2
+        run: tools/test_host.sh
+
+      - name: Build libragemod.so (arm64)
+        working-directory: standoff2
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: tools/build_native.sh
+
+      - name: Build classes.dex
+        working-directory: standoff2
+        run: tools/build_dex.sh
+
+      - name: UI previews
+        working-directory: standoff2
+        run: |
+          mkdir -p build/pv
+          javac -d build/pv -sourcepath java:build/gen/java preview/Preview.java
+          java -Djava.awt.headless=true -cp build/pv Preview build/preview
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ragemod-payload
+          path: |
+            standoff2/build/out/classes.dex
+            standoff2/build/out/lib/arm64-v8a/libragemod.so
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ragemod-ui-previews
+          path: standoff2/build/preview/*.png
+          retention-days: 14
+
+      - name: Download the game
+        if: ${{ inputs.apk_url != '' }}
+        run: |
+          mkdir -p game
+          i=0
+          for u in "${{ inputs.apk_url }}" ${{ inputs.extra_urls }}; do
+            i=$((i+1))
+            f="game/input_$i.${u##*.}"
+            case "$f" in *\?*) f="game/input_$i.apk";; esac
+            curl -fL --retry 5 --retry-delay 3 -o "$f" "$u"
+            ls -la "$f"
+          done
+
+      - name: Patch the game
+        if: ${{ inputs.apk_url != '' }}
+        working-directory: standoff2
+        run: |
+          python3 tools/patch_apk.py --lib build/out/lib/arm64-v8a/libragemod.so --dex build/out/classes.dex --out ../patched ../game/*
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.apk_url != '' }}
+        with:
+          name: ragemod-patched-game
+          path: patched/*
+          retention-days: 7

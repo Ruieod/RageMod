@@ -1,0 +1,156 @@
+{
+  "weapons": [
+    {"id": "g22",     "name": "G22",          "cat": "Pistol",  "keys": ["g22", "glock"]},
+    {"id": "usp",     "name": "USP",          "cat": "Pistol",  "keys": ["usp"]},
+    {"id": "p350",    "name": "P350",         "cat": "Pistol",  "keys": ["p350", "p250", "sig"]},
+    {"id": "deagle",  "name": "Desert Eagle", "cat": "Pistol",  "keys": ["deagle", "desert", "eagle"]},
+    {"id": "tec9",    "name": "TEC-9",        "cat": "Pistol",  "keys": ["tec9", "tec-9", "tec"]},
+    {"id": "fiveseven","name": "Five-SeveN",  "cat": "Pistol",  "keys": ["fiveseven", "five-seven", "57"]},
+    {"id": "berettas","name": "Berettas",     "cat": "Pistol",  "keys": ["beretta", "dual"]},
+    {"id": "mp7",     "name": "MP7",          "cat": "SMG",     "keys": ["mp7"]},
+    {"id": "mp5",     "name": "MP5",          "cat": "SMG",     "keys": ["mp5"]},
+    {"id": "ump45",   "name": "UMP45",        "cat": "SMG",     "keys": ["ump"]},
+    {"id": "p90",     "name": "P90",          "cat": "SMG",     "keys": ["p90"]},
+    {"id": "mac10",   "name": "MAC-10",       "cat": "SMG",     "keys": ["mac10", "mac-10", "mac"]},
+    {"id": "akr",     "name": "AKR",          "cat": "Rifle",   "keys": ["akr", "ak47"]},
+    {"id": "akr12",   "name": "AKR12",        "cat": "Rifle",   "keys": ["akr12", "ak12"]},
+    {"id": "m4",      "name": "M4",           "cat": "Rifle",   "keys": ["m4a1", "m4"]},
+    {"id": "m16",     "name": "M16",          "cat": "Rifle",   "keys": ["m16"]},
+    {"id": "famas",   "name": "FAMAS",        "cat": "Rifle",   "keys": ["famas"]},
+    {"id": "fal",     "name": "FN FAL",       "cat": "Rifle",   "keys": ["fnfal", "fal"]},
+    {"id": "vss",     "name": "VSS",          "cat": "Rifle",   "keys": ["vss"]},
+    {"id": "awm",     "name": "AWM",          "cat": "Sniper",  "keys": ["awm"]},
+    {"id": "m40",     "name": "M40",          "cat": "Sniper",  "keys": ["m40"]},
+    {"id": "m110",    "name": "M110",         "cat": "Sniper",  "keys": ["m110", "sniper"]},
+    {"id": "sm1014",  "name": "SM1014",       "cat": "Shotgun", "keys": ["sm1014", "mallard"]},
+    {"id": "fp6",     "name": "FP-6",         "cat": "Shotgun", "keys": ["fp6", "fp-6", "shotgun"]}
+  ],
+  "tabs": [
+    {
+      "id": "aim", "title": "Aimbot", "icon": "aim",
+      "groups": [
+        {"title": "Aim assist", "items": [
+          {"id": "aim.enable",  "t": "toggle", "l": "Enabled", "d": 0, "w": true},
+          {"id": "aim.mode",    "t": "combo",  "l": "Mode", "d": 0, "o": ["Smooth", "Snap", "Silent flick"], "w": true, "dep": "aim.enable"},
+          {"id": "aim.trigger", "t": "combo",  "l": "Active when", "d": 1, "o": ["Always", "While I fire"], "dep": "aim.enable"},
+          {"id": "aim.fov",     "t": "slider", "l": "Field of view", "d": 25, "min": 1, "max": 180, "step": 1, "u": "°", "w": true, "dep": "aim.enable"},
+          {"id": "aim.smooth",  "t": "slider", "l": "Smoothing", "d": 35, "min": 0, "max": 100, "step": 1, "u": "%", "w": true, "dep": "aim.enable"},
+          {"id": "aim.hitbox",  "t": "combo",  "l": "Hitbox", "d": 0, "o": ["Head", "Neck", "Chest", "Pelvis", "Closest", "Head, then body"], "w": true, "dep": "aim.enable"},
+          {"id": "aim.visible", "t": "toggle", "l": "Visible only", "d": 1, "dep": "aim.enable"},
+          {"id": "aim.team",    "t": "toggle", "l": "Skip teammates", "d": 1, "dep": "aim.enable"},
+          {"id": "aim.prio",    "t": "combo",  "l": "Target priority", "d": 0, "o": ["Nearest to crosshair", "Nearest to me"], "dep": "aim.enable"},
+          {"id": "aim.maxdist", "t": "slider", "l": "Max distance", "d": 80, "min": 5, "max": 150, "step": 1, "u": "m", "dep": "aim.enable"},
+          {"id": "aim.circle",  "t": "toggle", "l": "Draw FOV circle", "d": 1, "dep": "aim.enable"},
+          {"id": "aim.circlec", "t": "color",  "l": "FOV circle color", "d": [0.23, 0.63, 1.0, 0.85], "dep": "aim.circle"}
+        ]},
+        {"title": "Autofire", "items": [
+          {"id": "af.enable",   "t": "toggle", "l": "Enabled", "d": 0, "w": true},
+          {"id": "af.mode",     "t": "combo",  "l": "Fire style", "d": 0, "o": ["Hold", "Tap"], "w": true, "dep": "af.enable"},
+          {"id": "af.delay",    "t": "slider", "l": "Reaction delay", "d": 0, "min": 0, "max": 250, "step": 1, "u": " ms", "w": true, "dep": "af.enable"},
+          {"id": "af.tap",      "t": "slider", "l": "Tap press time", "d": 45, "min": 15, "max": 200, "step": 1, "u": " ms", "w": true, "dep": "af.enable"},
+          {"id": "af.interval", "t": "slider", "l": "Tap interval", "d": 60, "min": 0, "max": 800, "step": 5, "u": " ms", "w": true, "dep": "af.enable"},
+          {"id": "af.radius",   "t": "slider", "l": "Hit tolerance", "d": 16, "min": 2, "max": 90, "step": 1, "u": " px", "w": true, "dep": "af.enable"},
+          {"id": "af.visible",  "t": "toggle", "l": "Visible only", "d": 1, "dep": "af.enable"},
+          {"id": "af.team",     "t": "toggle", "l": "Skip teammates", "d": 1, "dep": "af.enable"}
+        ]},
+        {"title": "Recoil control", "items": [
+          {"id": "rcs.enable",  "t": "toggle", "l": "Enabled", "d": 0, "w": true},
+          {"id": "rcs.x",       "t": "slider", "l": "Horizontal", "d": 0, "min": 0, "max": 100, "step": 1, "u": "%", "w": true, "dep": "rcs.enable"},
+          {"id": "rcs.y",       "t": "slider", "l": "Vertical", "d": 55, "min": 0, "max": 100, "step": 1, "u": "%", "w": true, "dep": "rcs.enable"},
+          {"id": "rcs.gain",    "t": "slider", "l": "Pull strength", "d": 14, "min": 1, "max": 60, "step": 1, "u": " px", "w": true, "dep": "rcs.enable"}
+        ]},
+        {"title": "Backtrack", "items": [
+          {"id": "bt.enable",   "t": "toggle", "l": "Enabled", "d": 0},
+          {"id": "bt.ms",       "t": "slider", "l": "Window", "d": 100, "min": 20, "max": 250, "step": 5, "u": " ms", "dep": "bt.enable"},
+          {"id": "bt.ghost",    "t": "toggle", "l": "Draw ghost", "d": 1, "dep": "bt.enable"},
+          {"id": "bt.ghostc",   "t": "color",  "l": "Ghost color", "d": [1.0, 1.0, 1.0, 0.45], "dep": "bt.ghost"},
+          {"id": "bt.aim",      "t": "toggle", "l": "Aim at oldest record", "d": 0, "dep": "bt.enable"}
+        ]}
+      ]
+    },
+    {
+      "id": "weapons", "title": "Weapons", "icon": "weapon", "custom": "weapons",
+      "groups": [
+        {"title": "Profile", "items": [
+          {"id": "wpn.manual",  "t": "combo", "l": "Active weapon", "d": 0, "o": ["Auto-detect"]}
+        ]}
+      ]
+    },
+    {
+      "id": "visuals", "title": "Visuals", "icon": "eye",
+      "groups": [
+        {"title": "ESP", "items": [
+          {"id": "esp.enable",  "t": "toggle", "l": "Enabled", "d": 1},
+          {"id": "esp.box",     "t": "combo",  "l": "Box", "d": 2, "o": ["Off", "Full", "Corners"], "dep": "esp.enable"},
+          {"id": "esp.fill",    "t": "toggle", "l": "Box fill", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.skel",    "t": "toggle", "l": "Skeleton", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.head",    "t": "toggle", "l": "Head dot", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.dist",    "t": "toggle", "l": "Distance", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.weapon",  "t": "toggle", "l": "Weapon", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.snap",    "t": "combo",  "l": "Snaplines", "d": 0, "o": ["Off", "Top", "Center", "Bottom"], "dep": "esp.enable"},
+          {"id": "esp.arrows",  "t": "toggle", "l": "Off-screen arrows", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.enemy",   "t": "toggle", "l": "Enemies only", "d": 1, "dep": "esp.enable"},
+          {"id": "esp.maxdist", "t": "slider", "l": "Max distance", "d": 120, "min": 10, "max": 250, "step": 5, "u": "m", "dep": "esp.enable"},
+          {"id": "esp.thick",   "t": "slider", "l": "Thickness", "d": 1.6, "min": 0.8, "max": 4, "step": 0.1, "u": "", "dep": "esp.enable"},
+          {"id": "esp.cvis",    "t": "color",  "l": "Visible", "d": [0.35, 1.0, 0.55, 1.0], "dep": "esp.enable"},
+          {"id": "esp.chid",    "t": "color",  "l": "Hidden", "d": [1.0, 0.32, 0.38, 1.0], "dep": "esp.enable"},
+          {"id": "esp.cteam",   "t": "color",  "l": "Teammate", "d": [0.35, 0.7, 1.0, 1.0], "dep": "esp.enable"}
+        ]},
+        {"title": "Chams", "items": [
+          {"id": "chm.enable",  "t": "toggle", "l": "Enabled", "d": 0},
+          {"id": "chm.mode",    "t": "combo",  "l": "Style", "d": 0, "o": ["Flat", "Ghost"], "dep": "chm.enable"},
+          {"id": "chm.team",    "t": "toggle", "l": "Include teammates", "d": 0, "dep": "chm.enable"},
+          {"id": "chm.cvis",    "t": "color",  "l": "Visible", "d": [0.35, 1.0, 0.55, 1.0], "dep": "chm.enable"},
+          {"id": "chm.chid",    "t": "color",  "l": "Hidden", "d": [1.0, 0.32, 0.38, 0.9], "dep": "chm.enable"}
+        ]},
+        {"title": "World", "items": [
+          {"id": "world.noflash", "t": "toggle", "l": "No flashbang", "d": 0},
+          {"id": "world.nosmoke", "t": "toggle", "l": "No smoke", "d": 0},
+          {"id": "world.nostun",  "t": "toggle", "l": "No stun", "d": 0}
+        ]},
+        {"title": "Kill effects", "items": [
+          {"id": "kill.enable", "t": "toggle", "l": "Enabled", "d": 1},
+          {"id": "kill.style",  "t": "combo",  "l": "Style", "d": 0, "o": ["Burst", "Rings", "Lightning", "Skull"], "dep": "kill.enable"},
+          {"id": "kill.color",  "t": "color",  "l": "Color", "d": [0.23, 0.63, 1.0, 1.0], "dep": "kill.enable"},
+          {"id": "kill.size",   "t": "slider", "l": "Size", "d": 1.0, "min": 0.5, "max": 2.5, "step": 0.1, "u": "x", "dep": "kill.enable"},
+          {"id": "kill.text",   "t": "toggle", "l": "Floating text", "d": 1, "dep": "kill.enable"},
+          {"id": "kill.flash",  "t": "toggle", "l": "Screen flash", "d": 1, "dep": "kill.enable"},
+          {"id": "kill.vibe",   "t": "toggle", "l": "Haptic tick", "d": 0, "dep": "kill.enable"}
+        ]}
+      ]
+    },
+    {
+      "id": "misc", "title": "Misc", "icon": "gear",
+      "groups": [
+        {"title": "Interface", "items": [
+          {"id": "wm.enable",   "t": "toggle", "l": "Watermark", "d": 1},
+          {"id": "wm.style",    "t": "combo",  "l": "Watermark style", "d": 0, "o": ["Full", "Compact"], "dep": "wm.enable"},
+          {"id": "ui.accent",   "t": "color",  "l": "Accent color", "d": [0.23, 0.63, 1.0, 1.0]},
+          {"id": "ui.scale",    "t": "slider", "l": "Menu scale", "d": 1.0, "min": 0.7, "max": 1.6, "step": 0.05, "u": "x"},
+          {"id": "ui.alpha",    "t": "slider", "l": "Menu opacity", "d": 0.96, "min": 0.5, "max": 1.0, "step": 0.02, "u": ""},
+          {"id": "ui.btn",      "t": "slider", "l": "Button size", "d": 1.0, "min": 0.6, "max": 1.8, "step": 0.1, "u": "x"},
+          {"id": "ui.bx",       "t": "hidden", "l": "button x", "d": 0.03},
+          {"id": "ui.by",       "t": "hidden", "l": "button y", "d": 0.5}
+        ]},
+        {"title": "Touch calibration", "items": [
+          {"id": "cal.on",      "t": "toggle", "l": "Calibration mode", "d": 0},
+          {"id": "cal.cross",   "t": "slider", "l": "Crosshair Y offset", "d": 0, "min": -200, "max": 200, "step": 1, "u": " px"},
+          {"id": "cal.sens",    "t": "slider", "l": "Finger gain", "d": 1.0, "min": 0.2, "max": 4.0, "step": 0.05, "u": "x"},
+          {"id": "cal.auto",    "t": "toggle", "l": "Auto-tune gain", "d": 1},
+          {"id": "cal.fx",      "t": "hidden", "l": "fire x", "d": 0.86},
+          {"id": "cal.fy",      "t": "hidden", "l": "fire y", "d": 0.70},
+          {"id": "cal.lx",      "t": "hidden", "l": "look x", "d": 0.62},
+          {"id": "cal.ly",      "t": "hidden", "l": "look y", "d": 0.30}
+        ]},
+        {"title": "Diagnostics", "items": [
+          {"id": "dbg.panel",   "t": "toggle", "l": "Show debug panel", "d": 0},
+          {"id": "dbg.tool",    "t": "toggle", "l": "Show raw weapon name on ESP", "d": 0}
+        ]}
+      ]
+    },
+    {
+      "id": "config", "title": "Config", "icon": "disk", "custom": "config",
+      "groups": []
+    }
+  ]
+}
