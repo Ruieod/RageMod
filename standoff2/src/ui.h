@@ -11,5 +11,6 @@ void preview_frame(int tab, bool menu, const game::Frame& f);
 #endif
 bool install();      // хук eglSwapBuffers через GOT libunity.so
 bool menu_open();
-bool wants_input();  // палец на меню — игровой ввод надо глушить
+bool wants_input();        // палец на меню — игровой ввод надо глушить
+unsigned long long frames_drawn();  // сколько кадров реально отрисовали поверх игры
 } // namespace ui

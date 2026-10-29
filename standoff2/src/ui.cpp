@@ -41,6 +41,7 @@ EGLBoolean (*o_swap)(EGLDisplay, EGLSurface) = nullptr;
 bool g_imgui_ready = false;
 bool g_menu_open = false;
 std::atomic<bool> g_wants_input{false};
+std::atomic<unsigned long long> g_frames{0};
 game::Frame g_frame;
 double g_last_time = 0.0;
 float S = 1.f; // масштаб интерфейса
@@ -902,6 +903,7 @@ EGLBoolean hk_swap(EGLDisplay dpy, EGLSurface surf) {
     g_fps = g_fps * 0.9f + (1.f / io.DeltaTime) * 0.1f;
     touch::set_screen((int)w, (int)h);
 
+    g_frames.fetch_add(1, std::memory_order_relaxed);
     pump_input();
     game::copy_frame(&g_frame);
 
@@ -947,5 +949,7 @@ void preview_frame(int tab, bool menu, const game::Frame& f) {
 bool menu_open() { return g_menu_open; }
 
 bool wants_input() { return g_wants_input.load(std::memory_order_relaxed); }
+
+unsigned long long frames_drawn() { return g_frames.load(std::memory_order_relaxed); }
 
 } // namespace ui

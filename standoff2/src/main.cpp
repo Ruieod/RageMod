@@ -3,6 +3,7 @@
 // который делает dlopen этой либы в процесс com.axlebolt.standoff2.
 #include "boot.h"
 
+#include <cstdio>
 #include <fcntl.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -38,6 +39,28 @@ void* init(void*) {
     touch::start();
 
     LOGI("RageMod up (hooks %d/7)", mods::installed_count());
+
+    // Сторож: если за 15 секунд не отрисовали ни кадра, значит наш GLES-хук
+    // не вызывается. Чаще всего это значит, что игра рендерит через Vulkan.
+    // Пишем это прямым текстом, чтобы по логу сразу было видно причину.
+    sleep(15);
+    if (ui::frames_drawn() == 0) {
+        bool vulkan = false, gles = false;
+        FILE* f = fopen("/proc/self/maps", "re");
+        if (f) {
+            char line[512];
+            while (fgets(line, sizeof(line), f)) {
+                if (strstr(line, "libvulkan.so")) vulkan = true;
+                if (strstr(line, "libGLESv2.so") || strstr(line, "libGLESv3.so")) gles = true;
+            }
+            fclose(f);
+        }
+        LOGE("оверлей не рисует: кадров 0. libvulkan=%d libGLES=%d — если vulkan=1, "
+             "нужен хук vkQueuePresentKHR, GLES-хук тут не сработает",
+             (int)vulkan, (int)gles);
+    } else {
+        LOGI("оверлей рисует: %llu кадров", ui::frames_drawn());
+    }
     return nullptr;
 }
 
