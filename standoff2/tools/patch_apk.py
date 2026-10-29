@@ -21,6 +21,7 @@ import zipfile
 
 ABI = "arm64-v8a"
 NEEDED = "libragemod.so"
+TARGETS = ["libmain.so", "libgame.so", "libunity.so"]   # Unity <= 2022 loads libmain, Unity 6 / GameActivity builds load libgame
 
 
 def find_tool(name):
@@ -139,7 +140,7 @@ def main():
     ap.add_argument("--lib", required=True)
     ap.add_argument("--dex", required=True)
     ap.add_argument("--out", default="patched")
-    ap.add_argument("--target", default="libmain.so", help="game library that gets the DT_NEEDED entry")
+    ap.add_argument("--target", default="auto", help="game library that gets the DT_NEEDED entry (auto: %s, first one found)" % ", ".join(TARGETS))
     ap.add_argument("--keystore")
     ap.add_argument("--ks-pass", default="android")
     ap.add_argument("--key-alias", default="ragemod")
@@ -181,20 +182,21 @@ def main():
     if not apks:
         sys.exit("no .apk found in the input")
 
-    tgt_entry = "lib/%s/%s" % (ABI, a.target)
-    lib_apk = dex_apk = None
+    names = {}
     for p in apks:
         with zipfile.ZipFile(p) as z:
-            n = z.namelist()
-            if tgt_entry in n and lib_apk is None:
-                lib_apk = p
-            if "classes.dex" in n and dex_apk is None:
-                dex_apk = p
+            names[p] = set(z.namelist())
+    lib_apk = dex_apk = None
+    for t in (TARGETS if a.target == "auto" else [a.target]):
+        lib_apk = next((p for p in apks if "lib/%s/%s" % (ABI, t) in names[p]), None)
+        if lib_apk:
+            a.target = t
+            break
     if lib_apk is None:
-        sys.exit("%s not found in any APK - is this an arm64 build? (32-bit-only builds are not supported)" % tgt_entry)
-    if dex_apk is None:
-        dex_apk = apks[0]
-    print("lib target in: %s\ndex target in: %s" % (os.path.basename(lib_apk), os.path.basename(dex_apk)))
+        sys.exit("none of %s found under lib/%s/ in any APK - is this an arm64 build? (32-bit-only builds are not supported)"
+                 % (", ".join(TARGETS) if a.target == "auto" else a.target, ABI))
+    dex_apk = next((p for p in apks if "classes.dex" in names[p]), apks[0])
+    print("lib target: %s in %s\ndex target in: %s" % (a.target, os.path.basename(lib_apk), os.path.basename(dex_apk)))
 
     outputs = {}
     for p in apks:

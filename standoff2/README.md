@@ -27,11 +27,11 @@
 
 ## как получить APK
 
-1. Залей оригинальный APK (arm64) куда-нибудь, откуда есть **прямая ссылка** (например, Release-asset в этом репо). Подходит `.apk`, `.xapk`, `.apks`.
-2. GitHub → **Actions → Standoff 2 mod → Run workflow**, в `apk_url` вставь ссылку.
+1. Оригинальный APK (arm64) — `.apk`, `.xapk` или `.apks`. Самый простой путь: **Releases → Draft a new release** в этом репо, тег (например `game`), прикрепи файл, отметь **pre-release** и опубликуй (draft по тегу не скачивается). Репо публичное — после прогона релиз **удали**, иначе чужой APK лежит на виду и репо могут снести по DMCA.
+2. GitHub → **Actions → Standoff 2 mod → Run workflow**, в `apk_release` впиши тег (`game`). Либо вставь в `apk_url` прямую ссылку на файл с твоего хранилища — тогда релиз не нужен.
 3. В конце в артефактах будет `ragemod-patched-game`. Скачай, **удали оригинальную игру** (подпись другая) и поставь патченную. Для `.xapk` / `.apks` ставить через SAI.
 
-Без `apk_url` workflow просто собирает `ragemod-payload` (`libragemod.so` + `classes.dex`) и `ragemod-ui-previews` (PNG меню, ESP и эффектов).
+Без `apk_release` / `apk_url` workflow просто собирает `ragemod-payload` (`libragemod.so` + `classes.dex`) и `ragemod-ui-previews` (PNG меню, ESP и эффектов).
 
 Локально (если есть ПК с SDK/NDK):
 

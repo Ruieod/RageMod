@@ -8,6 +8,10 @@ on:
         description: 'Direct link to the game: .apk / .xapk / .apks (arm64). Empty = only build the payload'
         required: false
         default: ''
+      apk_release:
+        description: 'Or: tag of a Release in this repo that has the game attached (.apk / .xapk / .apks). Works for private repos, no direct link needed'
+        required: false
+        default: ''
       extra_urls:
         description: 'Extra split .apk links, space separated (only if the game came as loose splits)'
         required: false
@@ -74,14 +78,24 @@ jobs:
             ls -la "$f"
           done
 
+      - name: Download the game from a release of this repo
+        if: ${{ inputs.apk_release != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.apk_release }}
+        run: |
+          mkdir -p game
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir game --pattern '*.apk' --pattern '*.xapk' --pattern '*.apks'
+          ls -la game
+
       - name: Patch the game
-        if: ${{ inputs.apk_url != '' }}
+        if: ${{ inputs.apk_url != '' || inputs.apk_release != '' }}
         working-directory: standoff2
         run: |
           python3 tools/patch_apk.py --lib build/out/lib/arm64-v8a/libragemod.so --dex build/out/classes.dex --out ../patched ../game/*
 
       - uses: actions/upload-artifact@v4
-        if: ${{ inputs.apk_url != '' }}
+        if: ${{ inputs.apk_url != '' || inputs.apk_release != '' }}
         with:
           name: ragemod-patched-game
           path: patched/*
