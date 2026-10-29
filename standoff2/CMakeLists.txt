@@ -28,6 +28,7 @@ add_library(ragemod SHARED
     src/touch.cpp
     src/ui.cpp
     src/zygisk_entry.cpp
+    src/jni_main.cpp
     ${IMGUI}/imgui.cpp
     ${IMGUI}/imgui_draw.cpp
     ${IMGUI}/imgui_tables.cpp
