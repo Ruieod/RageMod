@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "antiaim.h"
 #include "config.h"
 #include "sdk.h"
 
@@ -120,6 +121,8 @@ void run_aim(sdk::Entity local, const Vec3& eye) {
     bool on = config::bind_active(g_cfg.aim_bind, g_cfg.aim);
     if (!on || !g_target.ok) return;
 
+    // при AA в real-режиме текущий угол — фейковый; снап делаем от него, но
+    // возвращать после выстрела надо туда же, иначе спин собьётся
     Vec3 want = calc_angle(eye, g_target.point);
     Vec3 cur = sdk::view_angles();
 
@@ -353,6 +356,8 @@ void tick(int sw, int sh) {
         }
     }
 
+    // AA первым: аим на выстреле перезапишет угол поверх него и сам же вернёт
+    antiaim::run(eye, best.ok, best.point);
     run_aim(local, eye);
     run_trigger(local);
     run_bhop(local);

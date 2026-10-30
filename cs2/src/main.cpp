@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "sdk.h"
+#include "sigs.h"
 
 namespace render {
 bool install();
@@ -19,6 +20,7 @@ DWORD WINAPI init(LPVOID) {
     if (!sdk::g_client) return 0;
 
     config::load();
+    sigs::load();
     render::install();
 
     while (true) {

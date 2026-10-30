@@ -29,6 +29,8 @@ const Field kFields[] = {
     F_F(aim_smooth), F_B(aim_auto_fire), F_B(aim_predict), F_F(aim_predict_scale),
     F_B(trigger), F_K(trigger_bind), F_I(trigger_delay_ms), F_B(trigger_team_check), F_B(trigger_scoped_only),
     F_B(bhop), F_K(bhop_bind),
+    F_B(aa_on), F_I(aa_mode), F_K(aa_bind), F_I(aa_pitch_mode), F_F(aa_pitch), F_F(aa_yaw), F_F(aa_jitter),
+    F_F(aa_spin_speed), F_B(aa_at_target), F_B(aa_follow_mouse),
     F_B(hitmarker), F_B(hitmarker_sound), F_F(hitmarker_size), F_B(killeffect),
     F_I(glow_type), F_B(glow_split_visible),
     F_B(esp), F_B(esp_box), F_I(esp_box_style), F_B(hud_binds), F_B(esp_skeleton), F_B(esp_health), F_B(esp_name), F_B(esp_dist),

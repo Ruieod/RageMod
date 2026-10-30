@@ -22,6 +22,9 @@ add_library(ragemod_cs2 SHARED
     src/sdk.cpp
     src/config.cpp
     src/game.cpp
+    src/antiaim.cpp
+    src/scan.cpp
+    src/sigs.cpp
     src/ui.cpp
     src/render.cpp
     ${IMGUI}/imgui.cpp
@@ -45,6 +48,6 @@ target_compile_options(ragemod_cs2 PRIVATE -O2 -fno-rtti -fno-exceptions -Wall
 # статически линкуем рантайм: на чужой машине нет mingw-dll
 target_link_options(ragemod_cs2 PRIVATE -static -static-libgcc -static-libstdc++ -Wl,--gc-sections)
 
-target_link_libraries(ragemod_cs2 d3d11 dxgi d3dcompiler dwmapi user32 gdi32 ole32)
+target_link_libraries(ragemod_cs2 d3d11 dxgi d3dcompiler dwmapi user32 gdi32 ole32 psapi shell32)
 
 set_target_properties(ragemod_cs2 PROPERTIES PREFIX "" OUTPUT_NAME "ragemod_cs2")

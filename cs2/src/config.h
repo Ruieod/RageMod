@@ -28,6 +28,18 @@ struct Config {
     bool trigger_team_check = true;
     bool trigger_scoped_only = false;
 
+    // ANTI-AIM
+    bool aa_on = false;
+    int aa_mode = 0;                 // 0 off, 1 static, 2 jitter, 3 spin, 4 sway
+    Bind aa_bind{0, 0};
+    int aa_pitch_mode = 2;           // 0 своё, 1 вверх, 2 вниз, 3 ровно, 4 прыгающий
+    float aa_pitch = 89.f;
+    float aa_yaw = 0.f;              // доворот от спины
+    float aa_jitter = 35.f;
+    float aa_spin_speed = 240.f;     // градусов в секунду
+    bool aa_at_target = true;        // спиной к ближайшему врагу, а не к своему взгляду
+    bool aa_follow_mouse = true;     // доворот мышкой переопределяет настоящий угол
+
     // MOVEMENT
     bool bhop = false;
     Bind bhop_bind{0x20, 0};         // по умолчанию пока зажат пробел

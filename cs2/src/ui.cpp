@@ -6,10 +6,12 @@
 #include <cmath>
 #include <cstring>
 
+#include "antiaim.h"
 #include "config.h"
 #include "game.h"
 #include "imgui.h"
 #include "roboto_font.h"
+#include "sigs.h"
 
 namespace ui {
 namespace {
@@ -26,6 +28,7 @@ const ImU32 text_dim   = IM_COL32(108, 117, 132, 255);
 const ImU32 caption    = IM_COL32(78, 86, 102, 255);
 const ImU32 accent     = IM_COL32(47, 126, 245, 255);
 const ImU32 accent_bg  = IM_COL32(47, 126, 245, 28);
+const ImU32 warn       = IM_COL32(235, 162, 64, 255);
 const ImU32 shadow     = IM_COL32(0, 0, 0, 120);
 } // namespace th
 
@@ -35,7 +38,7 @@ int g_tab = 0;
 Bind* g_binding = nullptr;   // бинд, для которого сейчас ловим клавишу
 float g_fps = 0.f;
 
-enum Icon { IcoRage, IcoTrigger, IcoPlayers, IcoWorld, IcoSkins, IcoSettings, IcoConfig };
+enum Icon { IcoRage, IcoTrigger, IcoAntiAim, IcoPlayers, IcoWorld, IcoSkins, IcoSettings, IcoConfig };
 
 struct Tab {
     const char* name;
@@ -43,12 +46,14 @@ struct Tab {
     const char* caption;     // подпись группы над пунктом, если начинается новая
 };
 const Tab kTabs[] = {
-    {"Ragebot", IcoRage, "aimbot"},   {"Trigger", IcoTrigger, nullptr},
-    {"Players", IcoPlayers, "visuals"}, {"World", IcoWorld, nullptr},
-    {"Skins", IcoSkins, nullptr},     {"Settings", IcoSettings, "misc"},
-    {"Configs", IcoConfig, nullptr},
+    {"Ragebot", IcoRage, "aimbot"},     {"Trigger", IcoTrigger, nullptr},
+    {"Anti-aim", IcoAntiAim, nullptr},  {"Players", IcoPlayers, "visuals"},
+    {"World", IcoWorld, nullptr},       {"Skins", IcoSkins, nullptr},
+    {"Settings", IcoSettings, "misc"},  {"Configs", IcoConfig, nullptr},
 };
 constexpr int kTabCount = (int)(sizeof(kTabs) / sizeof(kTabs[0]));
+// индексы в kTabs: по ним прыгают кнопки шапки, руками числа не пишем
+enum { TabRagebot = 0, TabTrigger, TabAntiAim, TabPlayers, TabWorld, TabSkins, TabSettings, TabConfigs };
 
 void draw_icon(ImDrawList* dl, ImVec2 c, float r, Icon id, ImU32 col) {
     const float t = 1.4f * S;
@@ -65,6 +70,13 @@ void draw_icon(ImDrawList* dl, ImVec2 c, float r, Icon id, ImU32 col) {
             dl->AddLine(ImVec2(c.x - r, c.y + r * 0.6f), ImVec2(c.x + r * 0.2f, c.y - r), col, t);
             dl->AddLine(ImVec2(c.x + r * 0.2f, c.y - r), ImVec2(c.x - r * 0.1f, c.y), col, t);
             dl->AddLine(ImVec2(c.x - r * 0.1f, c.y), ImVec2(c.x + r, c.y - r * 0.2f), col, t);
+            break;
+        case IcoAntiAim:
+            // фигурка спиной: голова плюс дуга плеч, развёрнутая от зрителя
+            dl->AddCircle(ImVec2(c.x, c.y - r * 0.5f), r * 0.38f, col, 0, t);
+            dl->PathArcTo(ImVec2(c.x, c.y + r * 1.2f), r * 0.9f, 3.35f, 6.07f, 14);
+            dl->PathStroke(col, 0, t);
+            dl->AddLine(ImVec2(c.x - r * 0.95f, c.y + r), ImVec2(c.x + r * 0.95f, c.y - r * 0.9f), col, t);
             break;
         case IcoPlayers:
             dl->AddCircle(ImVec2(c.x, c.y - r * 0.45f), r * 0.42f, col, 0, t);
@@ -377,6 +389,48 @@ void tab_trigger(int col) {
     group_end();
 }
 
+void tab_antiaim(int col) {
+    static const char* modes[] = {"Off", "Static", "Jitter", "Spin", "Sway"};
+    static const char* pitches[] = {"Custom", "Up", "Down", "Zero", "Flip"};
+
+    if (col == 0) {
+        group_begin("Yaw");
+        toggle_row("Enabled", &g_cfg.aa_on, &g_cfg.aa_bind);
+        combo_row("Mode", &g_cfg.aa_mode, modes, 5);
+        slider_row("Offset", &g_cfg.aa_yaw, -180.f, 180.f, "%.0f");
+        slider_row("Jitter", &g_cfg.aa_jitter, 0.f, 90.f, "%.0f");
+        slider_row("Spin speed", &g_cfg.aa_spin_speed, 30.f, 900.f, "%.0f /s");
+        group_end();
+
+        group_begin("Pitch");
+        combo_row("Mode", &g_cfg.aa_pitch_mode, pitches, 5);
+        if (g_cfg.aa_pitch_mode == 0) slider_row("Value", &g_cfg.aa_pitch, -89.f, 89.f, "%.0f");
+        group_end();
+        return;
+    }
+
+    group_begin("Behaviour");
+    toggle_row("Face away from target", &g_cfg.aa_at_target);
+    toggle_row("Mouse overrides real", &g_cfg.aa_follow_mouse);
+    hint("Спина разворачивается к ближайшему врагу, а не к своему взгляду.");
+    group_end();
+
+    group_begin("Transport");
+    bool hooked = antiaim::via_usercmd();
+    info_row("Mode", hooked ? "usercmd (fake)" : "view angles (real)", hooked ? th::accent : th::warn);
+    if (!hooked) {
+        hint("CUserCmd не настроен: угол пишется в dwViewAngles, значит крутится "
+             "и камера. Играбельно только в дм. Чтобы получить fake — заполни "
+             "ragemod_sigs.ini (Configs -> Dump input vtable).");
+    } else {
+        hint("Угол подменяется в CUserCmd: на экране взгляд на месте, по сети "
+             "уходит фейковый.");
+    }
+    info_row("Report risk", "high", th::warn);
+    hint("В демке AA видно глазами. Overwatch ловит его быстрее всего остального.");
+    group_end();
+}
+
 void tab_players(int col) {
     if (col == 0) {
         group_begin("ESP");
@@ -468,6 +522,14 @@ void tab_configs(int col) {
         if (wide_button("Load")) config::load();
         hint(config::path());
         group_end();
+
+        group_begin("Signatures");
+        if (wide_button("Dump input vtable")) sigs::dump_input_vtable();
+        if (wide_button("Reload sigs.ini")) sigs::load();
+        hint(sigs::status());
+        hint("Дамп кладётся в Documents\\RageMod. Индекс GetUserCmd оттуда — "
+             "в ragemod_sigs.ini, после Reload заработает fake-угол.");
+        group_end();
         return;
     }
     group_begin("Status");
@@ -483,12 +545,13 @@ void tab_configs(int col) {
 
 void draw_tab(int tab, int col) {
     switch (tab) {
-        case 0: tab_ragebot(col); break;
-        case 1: tab_trigger(col); break;
-        case 2: tab_players(col); break;
-        case 3: tab_world(col); break;
-        case 4: tab_skins(col); break;
-        case 5: tab_settings(col); break;
+        case TabRagebot: tab_ragebot(col); break;
+        case TabTrigger: tab_trigger(col); break;
+        case TabAntiAim: tab_antiaim(col); break;
+        case TabPlayers: tab_players(col); break;
+        case TabWorld: tab_world(col); break;
+        case TabSkins: tab_skins(col); break;
+        case TabSettings: tab_settings(col); break;
         default: tab_configs(col); break;
     }
 }
@@ -591,7 +654,7 @@ void draw_menu() {
         ImGui::PushID("hcfg");
         ImGui::InvisibleButton("##g", ImVec2(cw, bh));
         bool hv2 = ImGui::IsItemHovered();
-        if (ImGui::IsItemClicked()) g_tab = kTabCount - 1;
+        if (ImGui::IsItemClicked()) g_tab = TabConfigs;
         ImVec2 c0 = ImGui::GetItemRectMin();
         dl->AddRectFilled(c0, ImVec2(c0.x + cw, c0.y + bh), th::control, 4.f * S);
         dl->AddText(ImVec2(c0.x + 10.f * S, c0.y + (bh - ImGui::GetFontSize()) * 0.5f),
@@ -610,7 +673,7 @@ void draw_menu() {
             bool hv3 = ImGui::IsItemHovered();
             if (ImGui::IsItemClicked()) {
                 if (i == 0) g_open = false;
-                else g_tab = 5;
+                else g_tab = TabSettings;
             }
             ImVec2 ic = ImGui::GetItemRectMin();
             ImVec2 cc(ic.x + 11.f * S, ic.y + 11.f * S);
