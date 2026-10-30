@@ -20,6 +20,10 @@ struct Config {
     bool aim_auto_fire = false;      // стрелять самому, когда цель в конусе
     bool aim_predict = true;         // упреждение по скорости цели
     float aim_predict_scale = 1.f;
+    // match-safe: человеческий профиль под официальный мм (VACnet/Overwatch)
+    float aim_humanize = 0.5f;       // макс. случайный увод от центра кости, градусы
+    int   aim_reaction_ms = 140;     // задержка перед первым снапом по новой цели
+    int   aim_refire_ms = 90;        // минимальный разрыв между снап-выстрелами
 
     // TRIGGER
     bool trigger = false;
@@ -39,6 +43,8 @@ struct Config {
     float aa_spin_speed = 240.f;     // градусов в секунду
     bool aa_at_target = true;        // спиной к ближайшему врагу, а не к своему взгляду
     bool aa_follow_mouse = true;     // доворот мышкой переопределяет настоящий угол
+    float aa_max_delta = 12.f;       // match-safe: макс. изменение фейк-йо за тик, градусы
+    float aa_pitch_cap = 20.f;       // match-safe: питч держим в этом коридоре, без ±89
 
     // MOVEMENT
     bool bhop = false;
@@ -82,6 +88,7 @@ struct Config {
     int skin_stattrak = -1;
 
     // MISC
+    bool match_safe = true;          // режет палевные режимы aim/AA под официальный мм
     bool watermark = true;
     bool hud_binds = true;           // список активных биндов в углу
     bool draw_fov = false;

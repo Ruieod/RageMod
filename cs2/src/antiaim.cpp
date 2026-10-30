@@ -26,21 +26,30 @@ float now_s() {
 }
 
 float pitch_for_mode() {
+    float p;
     switch (g_cfg.aa_pitch_mode) {
-        case 1: return -89.f;                 // вверх
-        case 2: return 89.f;                  // вниз
-        case 3: return 0.f;                   // ровно
+        case 1: p = -89.f; break;             // вверх
+        case 2: p = 89.f; break;              // вниз
+        case 3: p = 0.f; break;               // ровно
         case 4: {                             // прыгающий
             static int f = 0;
-            return (++f & 1) ? 89.f : -89.f;
+            p = (++f & 1) ? 89.f : -89.f;
+            break;
         }
-        default: return g_cfg.aa_pitch;       // своё значение
+        default: p = g_cfg.aa_pitch; break;   // своё значение
     }
+    if (g_cfg.match_safe) {                   // ±89 в демке читается глазами — держим коридор
+        const float c = g_cfg.aa_pitch_cap;
+        if (p > c) p = c; else if (p < -c) p = -c;
+    }
+    return p;
 }
 
 float yaw_for_mode(float base) {
     const float t = now_s();
-    switch (g_cfg.aa_mode) {
+    int mode = g_cfg.aa_mode;
+    if (g_cfg.match_safe && mode == 3) mode = 4;   // спин — инста-палево в мм, вместо него sway
+    switch (mode) {
         case 1:                                // static
             return base + g_cfg.aa_yaw;
         case 2: {                              // jitter
@@ -72,6 +81,12 @@ Vec3 fake_angles(const Vec3& real, float yaw_to_target) {
     // всегда повёрнута к тому, кто стреляет
     float base = (g_cfg.aa_at_target && g_target) ? yaw_to_target : real.y;
     Vec3 out{pitch_for_mode(), norm_angle(yaw_for_mode(base + 180.f)), 0.f};
+    if (g_cfg.match_safe) {                    // режем угловую скорость до человеческой
+        const float cap = g_cfg.aa_max_delta;
+        const float dy = norm_angle(out.y - g_last_fake.y);
+        if (dy > cap) out.y = norm_angle(g_last_fake.y + cap);
+        else if (dy < -cap) out.y = norm_angle(g_last_fake.y - cap);
+    }
     g_last_fake = out;
     return out;
 }

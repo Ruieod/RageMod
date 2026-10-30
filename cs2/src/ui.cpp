@@ -367,6 +367,15 @@ void tab_ragebot(int col) {
     slider_row("Scale", &g_cfg.aim_predict_scale, 0.f, 3.f, "%.2f");
     hint("Упреждение на тик сети: цель сдвигается по своей скорости.");
     group_end();
+
+    group_begin("Match safe");
+    toggle_row("Enabled", &g_cfg.match_safe);
+    slider_row("Humanize", &g_cfg.aim_humanize, 0.f, 3.f, "%.2f");
+    slider_int_row("Reaction (ms)", &g_cfg.aim_reaction_ms, 0, 400);
+    slider_int_row("Refire (ms)", &g_cfg.aim_refire_ms, 0, 400);
+    hint("Увод от центра кости + задержка реакции/рефайра. Снимает идеальный "
+         "угол и нулевую реакцию, которые ловят VACnet и Overwatch.");
+    group_end();
 }
 
 void tab_trigger(int col) {
@@ -405,6 +414,14 @@ void tab_antiaim(int col) {
         group_begin("Pitch");
         combo_row("Mode", &g_cfg.aa_pitch_mode, pitches, 5);
         if (g_cfg.aa_pitch_mode == 0) slider_row("Value", &g_cfg.aa_pitch, -89.f, 89.f, "%.0f");
+        group_end();
+
+        group_begin("Match safe");
+        toggle_row("Enabled", &g_cfg.match_safe);
+        slider_row("Max delta", &g_cfg.aa_max_delta, 1.f, 60.f, "%.0f");
+        slider_row("Pitch cap", &g_cfg.aa_pitch_cap, 0.f, 89.f, "%.0f");
+        hint("В мм spin выключается в sway, фейк-йо не прыгает больше дельты за "
+             "тик, питч не уходит в ±89. Иначе демка палит на глаз.");
         group_end();
         return;
     }

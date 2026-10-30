@@ -41,6 +41,14 @@ int64_t now_ms() {
     return c.QuadPart * 1000 / freq.QuadPart;
 }
 
+// дешёвый xorshift для человеческого разброса; сид от QPC, чтобы профиль не повторялся
+float frand(float lo, float hi) {
+    static uint32_t s = 0;
+    if (!s) { LARGE_INTEGER c{}; QueryPerformanceCounter(&c); s = (uint32_t)c.QuadPart | 1u; }
+    s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+    return lo + (hi - lo) * ((float)(s & 0xFFFFFFu) / (float)0xFFFFFFu);
+}
+
 } // namespace
 
 // скелет: пары костей, рисует ui
@@ -112,6 +120,8 @@ Vec3 aim_point(sdk::Entity e) {
 void run_aim(sdk::Entity local, const Vec3& eye) {
     static Vec3 saved{};
     static int restore_frames = 0;
+    static uintptr_t locked = 0;              // по какой цели уже отрабатываем реакцию
+    static int64_t ready_ms = 0;              // когда разрешён следующий снап-выстрел
 
     if (restore_frames > 0 && --restore_frames == 0) {
         sdk::set_view_angles(saved);          // вернули угол после выстрела
@@ -119,25 +129,50 @@ void run_aim(sdk::Entity local, const Vec3& eye) {
     }
 
     bool on = config::bind_active(g_cfg.aim_bind, g_cfg.aim);
-    if (!on || !g_target.ok) return;
+    if (!on || !g_target.ok) { locked = 0; return; }   // нет цели — реакция перевзводится
 
     // при AA в real-режиме текущий угол — фейковый; снап делаем от него, но
     // возвращать после выстрела надо туда же, иначе спин собьётся
     Vec3 want = calc_angle(eye, g_target.point);
     Vec3 cur = sdk::view_angles();
 
+    // человеческий увод: не садимся в центр кости ровно, VACnet ловит идеальный угол
+    if (g_cfg.match_safe && g_cfg.aim_humanize > 0.f) {
+        const float h = g_cfg.aim_humanize;
+        want.x = norm_angle(want.x + frand(-h, h));
+        want.y = norm_angle(want.y + frand(-h, h));
+    }
+
+    // задержка реакции по новой цели + разрыв между выстрелами, с джиттером
+    bool fire_gate = true;
+    if (g_cfg.match_safe) {
+        const int64_t t = now_ms();
+        if (locked != g_target.pawn) {
+            locked = g_target.pawn;
+            ready_ms = t + g_cfg.aim_reaction_ms + (int64_t)frand(0.f, g_cfg.aim_reaction_ms * 0.5f);
+        }
+        if (t < ready_ms) fire_gate = false;
+    }
+
     if (g_cfg.aim_silent && g_cfg.aim_auto_fire) {
+        if (!fire_gate) return;               // ещё «не успели» среагировать — не стреляем
         saved = cur;
         sdk::set_view_angles(want);
         sdk::press_attack(true);
         restore_frames = 2;                   // кадр на выстрел, потом откат
+        if (g_cfg.match_safe)
+            ready_ms = now_ms() + g_cfg.aim_refire_ms + (int64_t)frand(0.f, (float)g_cfg.aim_refire_ms);
         return;
     }
 
     float smooth = g_cfg.aim_smooth < 1.f ? 1.f : g_cfg.aim_smooth;
     Vec3 step{cur.x + norm_angle(want.x - cur.x) / smooth, cur.y + norm_angle(want.y - cur.y) / smooth, 0.f};
     sdk::set_view_angles(step);
-    if (g_cfg.aim_auto_fire && g_target.fov < g_cfg.aim_fov * 0.3f) sdk::press_attack(true);
+    if (g_cfg.aim_auto_fire && g_target.fov < g_cfg.aim_fov * 0.3f && fire_gate) {
+        sdk::press_attack(true);
+        if (g_cfg.match_safe)
+            ready_ms = now_ms() + g_cfg.aim_refire_ms + (int64_t)frand(0.f, (float)g_cfg.aim_refire_ms);
+    }
 }
 
 void press_jump(bool down) {
@@ -335,7 +370,7 @@ void tick(int sw, int sh) {
             Vec3 point = aim_point(pawn);
             Vec3 want = calc_angle(eye, point);
             float d = angle_diff(want, angles);
-            bool vis_ok = !g_cfg.aim_visible_only || p.visible;
+            bool vis_ok = p.visible || (!g_cfg.aim_visible_only && !g_cfg.match_safe);
             if (d <= g_cfg.aim_fov && vis_ok && d < best.fov) {
                 best.ok = true;
                 best.pawn = pawn.ptr;
