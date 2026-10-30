@@ -1,22 +1,29 @@
-// сгенерировано tools/update_offsets.py из github.com/a2x/cs2-dumper
-// дамп от 2026-10-23 17:14:58.380890300 UTC
+// база: tools/update_offsets.py из github.com/a2x/cs2-dumper, дамп от 2026-10-23
+// client_dll-глобалы пересняты статикой сигнатурами cs2-dumper с client.dll
+// билда 2026-10-28 (PE TimeDateStamp), т.к. публичного дампа под него нет.
+// Схема (32 поля) сверена с бинарём — не менялась, значения ниже валидны.
+// Используемые кодом глобалы пересняты; dwGlobalVars/dwGameRules/dwPlantedC4/
+// dwSensitivity/dwGlowManager в коде не используются и оставлены от 10-23.
+// Кнопки (buttons::*) снять статикой нельзя — список строится в рантайме;
+// на 10-28 они невалидны. attack/jump нужны только для auto-fire/trigger/bhop,
+// которые по умолчанию выключены. Для них нужен прогон cs2-dumper по живой игре.
 #pragma once
 #include <cstdint>
 
 namespace off {
 namespace client_dll {
-constexpr uintptr_t dwEntityList = 0x271c8b8;
-constexpr uintptr_t dwLocalPlayerController = 0x253eef8;
-constexpr uintptr_t dwLocalPlayerPawn = 0x25676d8;
-constexpr uintptr_t dwViewMatrix = 0x256cfe0;
-constexpr uintptr_t dwViewAngles = 0x257de08;
-constexpr uintptr_t dwCSGOInput = 0x257d780;
+constexpr uintptr_t dwEntityList = 0x271eb08;
+constexpr uintptr_t dwLocalPlayerController = 0x25413f8;
+constexpr uintptr_t dwLocalPlayerPawn = 0x25698c8;
+constexpr uintptr_t dwViewMatrix = 0x256f1d0;
+constexpr uintptr_t dwViewAngles = 0x2580008;
+constexpr uintptr_t dwCSGOInput = 0x257f980;
 constexpr uintptr_t dwGlobalVars = 0x2232088;
 constexpr uintptr_t dwGameRules = 0x2567188;
 constexpr uintptr_t dwPlantedC4 = 0x24cd930;
 constexpr uintptr_t dwSensitivity = 0x25649d8;
 constexpr uintptr_t dwSensitivity_sensitivity = 0x58;
-constexpr uintptr_t dwGameEntitySystem = 0x271c8b8;
+constexpr uintptr_t dwGameEntitySystem = 0x271eb08;
 constexpr uintptr_t dwGameEntitySystem_highestEntityIndex = 0x2120;
 constexpr uintptr_t dwGlowManager = 0x2563eb0;
 }
