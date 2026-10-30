@@ -12,6 +12,7 @@
 namespace render {
 bool install();
 void uninstall();
+long present_calls();
 } // namespace render
 
 namespace {
@@ -38,10 +39,10 @@ void snapshot(const char* tag) {
     uintptr_t csgo = sdk::g_client ? mem::ptr(sdk::g_client + off::client_dll::dwCSGOInput) : 0;
     sdk::Controller ctrl = sdk::local_controller();
     sdk::Entity pawn = sdk::local_pawn();
-    logf("[%s] client=%p engine=%p csgoinput=%p localctrl=%p localpawn=%p highest=%d | %s",
-         tag, (void*)sdk::g_client, (void*)sdk::g_engine, (void*)csgo,
+    logf("[%s] client=%p csgoinput=%p localctrl=%p localpawn=%p highest=%d present_calls=%ld | %s",
+         tag, (void*)sdk::g_client, (void*)csgo,
          (void*)(ctrl ? ctrl.ptr : 0), (void*)(pawn ? pawn.ptr : 0),
-         sdk::highest_index(), sigs::status());
+         sdk::highest_index(), render::present_calls(), sigs::status());
 }
 
 DWORD WINAPI init(LPVOID) {
@@ -60,6 +61,9 @@ DWORD WINAPI init(LPVOID) {
 
     int n = sigs::dump_input_vtable();
     logf("auto dump_input_vtable -> %d строк (нужна игра с ботами, не меню)", n);
+
+    Sleep(3000);
+    snapshot("after3s");   // present_calls>0 => хук Present живой (dx11); 0 => вулкан
 
     // F8 — переснять дамп (зайди в игру, потом жми); F7 — снапшот; END — выгрузка
     while (true) {

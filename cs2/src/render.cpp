@@ -32,6 +32,7 @@ HWND g_hwnd = nullptr;
 bool g_ready = false;
 bool g_style_done = false;
 float g_fps = 0.f;
+volatile long g_present_calls = 0;   // >0 => хук Present живой (игра на dx11)
 
 struct FindCtx {
     DWORD pid;
@@ -98,6 +99,7 @@ void init_imgui(IDXGISwapChain* sc) {
 }
 
 HRESULT __stdcall hk_present(IDXGISwapChain* sc, UINT interval, UINT flags) {
+    g_present_calls++;
     if (!g_ready) init_imgui(sc);
     if (!g_ready || !g_rtv) return o_present(sc, interval, flags);
 
@@ -177,6 +179,8 @@ bool dummy_vtable(void*** out) {
 }
 
 } // namespace
+
+long present_calls() { return g_present_calls; }
 
 bool install() {
     void** vt = nullptr;
