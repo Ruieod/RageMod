@@ -78,12 +78,20 @@ LRESULT CALLBACK hk_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 void init_imgui(IDXGISwapChain* sc) {
+    // привязываемся только к свопчейну с реальным видимым окном игры:
+    // cs2 держит и побочные свопчейны, инит на них рисует в никуда
+    DXGI_SWAP_CHAIN_DESC desc{};
+    if (FAILED(sc->GetDesc(&desc))) return;
+    HWND wnd = desc.OutputWindow;
+    if (!wnd || !IsWindowVisible(wnd)) {
+        HWND gw = game_window();
+        if (!gw) return;              // окна ещё нет — ждём следующий кадр
+        wnd = gw;
+    }
+
     if (FAILED(sc->GetDevice(__uuidof(ID3D11Device), (void**)&g_device)) || !g_device) return;
     g_device->GetImmediateContext(&g_ctx);
-
-    DXGI_SWAP_CHAIN_DESC desc{};
-    sc->GetDesc(&desc);
-    g_hwnd = desc.OutputWindow ? desc.OutputWindow : game_window();
+    g_hwnd = wnd;
 
     make_rtv(sc);
 
@@ -101,7 +109,9 @@ void init_imgui(IDXGISwapChain* sc) {
 HRESULT __stdcall hk_present(IDXGISwapChain* sc, UINT interval, UINT flags) {
     g_present_calls++;
     if (!g_ready) init_imgui(sc);
-    if (!g_ready || !g_rtv) return o_present(sc, interval, flags);
+    if (!g_ready) return o_present(sc, interval, flags);
+    if (!g_rtv) make_rtv(sc);                       // flip-model: добираем бэкбуфер
+    if (!g_rtv) return o_present(sc, interval, flags);
 
     ImGuiIO& io = ImGui::GetIO();
     if (!g_style_done || (int)(g_cfg.menu_scale * 100.f) != (int)(io.FontGlobalScale * 100.f)) {
