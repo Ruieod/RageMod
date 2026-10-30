@@ -13,6 +13,11 @@ namespace render {
 bool install();
 void uninstall();
 long present_calls();
+bool is_ready();
+bool has_rtv();
+void* dev_ptr();
+int disp_w();
+int disp_h();
 } // namespace render
 
 namespace {
@@ -39,10 +44,10 @@ void snapshot(const char* tag) {
     uintptr_t csgo = sdk::g_client ? mem::ptr(sdk::g_client + off::client_dll::dwCSGOInput) : 0;
     sdk::Controller ctrl = sdk::local_controller();
     sdk::Entity pawn = sdk::local_pawn();
-    logf("[%s] client=%p csgoinput=%p localctrl=%p localpawn=%p highest=%d present_calls=%ld | %s",
-         tag, (void*)sdk::g_client, (void*)csgo,
-         (void*)(ctrl ? ctrl.ptr : 0), (void*)(pawn ? pawn.ptr : 0),
-         sdk::highest_index(), render::present_calls(), sigs::status());
+    logf("[%s] present=%ld ready=%d rtv=%d dev=%p disp=%dx%d | localpawn=%p highest=%d csgoinput=%p",
+         tag, render::present_calls(), render::is_ready(), render::has_rtv(), render::dev_ptr(),
+         render::disp_w(), render::disp_h(),
+         (void*)(pawn ? pawn.ptr : 0), sdk::highest_index(), (void*)csgo);
 }
 
 DWORD WINAPI init(LPVOID) {

@@ -181,6 +181,11 @@ bool dummy_vtable(void*** out) {
 } // namespace
 
 long present_calls() { return g_present_calls; }
+bool is_ready() { return g_ready; }
+bool has_rtv() { return g_rtv != nullptr; }
+void* dev_ptr() { return g_device; }
+int disp_w() { return g_ready ? (int)ImGui::GetIO().DisplaySize.x : -1; }
+int disp_h() { return g_ready ? (int)ImGui::GetIO().DisplaySize.y : -1; }
 
 bool install() {
     void** vt = nullptr;
