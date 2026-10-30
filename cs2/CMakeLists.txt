@@ -42,11 +42,13 @@ target_compile_definitions(ragemod_cs2 PRIVATE
     IMGUI_DISABLE_DEMO_WINDOWS IMGUI_DISABLE_DEBUG_TOOLS
     WIN32_LEAN_AND_MEAN NOMINMAX _WIN32_WINNT=0x0601)
 
-target_compile_options(ragemod_cs2 PRIVATE -O2 -fno-rtti -fno-exceptions -Wall
+target_compile_options(ragemod_cs2 PRIVATE -O2 -fno-rtti -fno-exceptions -fno-ident -Wall
     -Wno-unused-parameter -Wno-unused-function -Wno-cast-function-type)
 
 # статически линкуем рантайм: на чужой машине нет mingw-dll
-target_link_options(ragemod_cs2 PRIVATE -static -static-libgcc -static-libstdc++ -Wl,--gc-sections)
+target_link_options(ragemod_cs2 PRIVATE -static -static-libgcc -static-libstdc++ -Wl,--gc-sections
+    # mingw экспортирует все глобалы, если нет dllexport — режем, плюс символы и таймстамп
+    -Wl,--exclude-all-symbols -s -Wl,--no-insert-timestamp)
 
 target_link_libraries(ragemod_cs2 d3d11 dxgi d3dcompiler dwmapi user32 gdi32 ole32 psapi shell32)
 

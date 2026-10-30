@@ -20,6 +20,9 @@ struct Config {
     bool aim_auto_fire = false;      // стрелять самому, когда цель в конусе
     bool aim_predict = true;         // упреждение по скорости цели
     float aim_predict_scale = 1.f;
+    bool humanize = true;            // шум угла, реакция на новую цель, пачки у триггера, промахи бхопа
+    int aim_react_ms = 120;          // пауза между появлением цели в FOV и первым движением
+    float mouse_sens = 1.f;          // sensitivity из игры: углы квантуются по шагу 0.022*sens, 0 — выключено
 
     // TRIGGER
     bool trigger = false;
@@ -43,6 +46,7 @@ struct Config {
     // MOVEMENT
     bool bhop = false;
     Bind bhop_bind{0x20, 0};         // по умолчанию пока зажат пробел
+    int bhop_hitchance = 92;         // % приземлений, на которых прыжок идёт без задержки
 
     // HIT / KILL эффекты
     bool hitmarker = true;

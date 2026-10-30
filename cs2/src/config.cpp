@@ -27,6 +27,7 @@ struct Field {
 const Field kFields[] = {
     F_B(aim), F_K(aim_bind), F_F(aim_fov), F_I(aim_bone), F_B(aim_visible_only), F_B(aim_silent),
     F_F(aim_smooth), F_B(aim_auto_fire), F_B(aim_predict), F_F(aim_predict_scale),
+    F_B(humanize), F_I(aim_react_ms), F_F(mouse_sens), F_I(bhop_hitchance),
     F_B(trigger), F_K(trigger_bind), F_I(trigger_delay_ms), F_B(trigger_team_check), F_B(trigger_scoped_only),
     F_B(bhop), F_K(bhop_bind),
     F_B(aa_on), F_I(aa_mode), F_K(aa_bind), F_I(aa_pitch_mode), F_F(aa_pitch), F_F(aa_yaw), F_F(aa_jitter),

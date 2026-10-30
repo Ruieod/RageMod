@@ -41,6 +41,41 @@ int64_t now_ms() {
     return c.QuadPart * 1000 / freq.QuadPart;
 }
 
+// xorshift32: хватает для шума, не тянет crt rand()
+float rnd01() {
+    static uint32_t s = (uint32_t)now_ms() * 2654435761u | 1u;
+    s ^= s << 13;
+    s ^= s >> 17;
+    s ^= s << 5;
+    return (float)(s & 0xFFFFFF) / 16777216.f;
+}
+float rnd(float a, float b) { return a + (b - a) * rnd01(); }
+
+// Угол от настоящей мыши — всегда целое число шагов по 0.022*sens. Ровное значение
+// от calc_angle в демке и в статистике видно сразу, поэтому квантуем дельту.
+float quant_delta(float delta) {
+    if (!g_cfg.humanize || g_cfg.mouse_sens <= 0.f) return delta;
+    float step = 0.022f * g_cfg.mouse_sens;
+    return std::round(delta / step) * step;
+}
+
+Vec3 apply_delta(const Vec3& cur, const Vec3& want) {
+    return {cur.x + quant_delta(norm_angle(want.x - cur.x)), cur.y + quant_delta(norm_angle(want.y - cur.y)), 0.f};
+}
+
+// живой человек не стартует через 0 мс после появления цели в конусе
+uintptr_t g_acq_pawn = 0;
+int64_t g_acq_at = 0;
+bool reacted(uintptr_t pawn) {
+    if (!g_cfg.humanize) return true;
+    int64_t t = now_ms();
+    if (pawn != g_acq_pawn) {
+        g_acq_pawn = pawn;
+        g_acq_at = t + (int64_t)((float)g_cfg.aim_react_ms * rnd(0.7f, 1.3f));
+    }
+    return t >= g_acq_at;
+}
+
 } // namespace
 
 // скелет: пары костей, рисует ui
@@ -119,23 +154,33 @@ void run_aim(sdk::Entity local, const Vec3& eye) {
     }
 
     bool on = config::bind_active(g_cfg.aim_bind, g_cfg.aim);
-    if (!on || !g_target.ok) return;
+    if (!on || !g_target.ok) {
+        g_acq_pawn = 0;
+        return;
+    }
+    if (!reacted(g_target.pawn)) return;
 
     // при AA в real-режиме текущий угол — фейковый; снап делаем от него, но
     // возвращать после выстрела надо туда же, иначе спин собьётся
     Vec3 want = calc_angle(eye, g_target.point);
     Vec3 cur = sdk::view_angles();
+    if (g_cfg.humanize) {
+        // точка попадания не должна быть идеальным центром кости каждый раз
+        want.x += rnd(-0.12f, 0.12f);
+        want.y += rnd(-0.12f, 0.12f);
+    }
 
     if (g_cfg.aim_silent && g_cfg.aim_auto_fire) {
         saved = cur;
-        sdk::set_view_angles(want);
+        sdk::set_view_angles(apply_delta(cur, want));
         sdk::press_attack(true);
         restore_frames = 2;                   // кадр на выстрел, потом откат
         return;
     }
 
     float smooth = g_cfg.aim_smooth < 1.f ? 1.f : g_cfg.aim_smooth;
-    Vec3 step{cur.x + norm_angle(want.x - cur.x) / smooth, cur.y + norm_angle(want.y - cur.y) / smooth, 0.f};
+    if (g_cfg.humanize) smooth *= rnd(0.85f, 1.2f);
+    Vec3 step = apply_delta(cur, {cur.x + norm_angle(want.x - cur.x) / smooth, cur.y + norm_angle(want.y - cur.y) / smooth, 0.f});
     sdk::set_view_angles(step);
     if (g_cfg.aim_auto_fire && g_target.fov < g_cfg.aim_fov * 0.3f) sdk::press_attack(true);
 }
@@ -158,7 +203,16 @@ void run_bhop(sdk::Entity local) {
     }
     uint32_t flags = mem::read<uint32_t>(local.ptr + off::C_BaseEntity::m_fFlags);
     bool on_ground = (flags & (1u << 0)) != 0;
-    press_jump(on_ground);
+
+    // идеальный бхоп без единой ошибки за серию — первый признак; иногда лэндим с задержкой
+    static bool was_ground = true;
+    static int64_t late_until = 0;
+    int64_t t = now_ms();
+    if (on_ground && !was_ground && g_cfg.humanize && rnd(0.f, 100.f) >= (float)g_cfg.bhop_hitchance)
+        late_until = t + (int64_t)rnd(50.f, 140.f);
+    was_ground = on_ground;
+
+    press_jump(on_ground && t >= late_until);
     held = true;
 }
 
@@ -208,6 +262,7 @@ void track_hits(sdk::Entity local, const Frame& f) {
 
 void run_trigger(sdk::Entity local) {
     static int64_t fire_at = 0;
+    static int64_t release_at = 0;
     static bool holding = false;
 
     bool on = config::bind_active(g_cfg.trigger_bind, g_cfg.trigger);
@@ -233,10 +288,20 @@ void run_trigger(sdk::Entity local) {
 
     int64_t t = now_ms();
     if (valid) {
-        if (fire_at == 0) fire_at = t + g_cfg.trigger_delay_ms;
+        if (fire_at == 0) {
+            float d = (float)g_cfg.trigger_delay_ms;
+            fire_at = t + (int64_t)(g_cfg.humanize ? d * rnd(0.75f, 1.35f) + rnd(0.f, 15.f) : d);
+        }
+        // не держим кнопку, пока цель в прицеле: короткая пауза между пачками
+        if (holding && g_cfg.humanize && t >= release_at) {
+            sdk::press_attack(false);
+            holding = false;
+            fire_at = t + (int64_t)rnd(40.f, 110.f);
+        }
         if (t >= fire_at && !holding) {
             sdk::press_attack(true);
             holding = true;
+            release_at = t + (int64_t)rnd(90.f, 220.f);
         }
     } else {
         fire_at = 0;

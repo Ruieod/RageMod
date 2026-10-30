@@ -350,6 +350,13 @@ void tab_ragebot(int col) {
         slider_row("Field of view", &g_cfg.aim_fov, 0.5f, 30.f, "%.1f");
         slider_row("Smoothing", &g_cfg.aim_smooth, 1.f, 20.f, "%.1f");
         group_end();
+
+        group_begin("Humanizer");
+        toggle_row("Humanize", &g_cfg.humanize);
+        slider_int_row("Reaction (ms)", &g_cfg.aim_react_ms, 0, 400);
+        slider_row("Mouse sens", &g_cfg.mouse_sens, 0.f, 8.f, "%.2f");
+        hint("Sens из настроек игры. Углы идут шагом 0.022*sens, как от настоящей мыши; 0 — выкл.");
+        group_end();
         return;
     }
     group_begin("Selection");
@@ -385,6 +392,7 @@ void tab_trigger(int col) {
 
     group_begin("Movement");
     toggle_row("Bunny hop", &g_cfg.bhop, &g_cfg.bhop_bind);
+    slider_int_row("Hit chance (%)", &g_cfg.bhop_hitchance, 50, 100);
     hint("Прыжок отпускается в воздухе и жмётся в кадр касания земли.");
     group_end();
 }

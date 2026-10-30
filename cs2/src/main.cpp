@@ -13,6 +13,18 @@ void uninstall();
 namespace {
 
 HMODULE g_self = nullptr;
+bool g_wiped = false;
+
+// Заголовок PE после инициализации нам не нужен (резолв импортов уже сделан),
+// а сканеру по памяти он первым подсказывает «тут образ модуля». Нули поверх.
+// Побочка: unwind по нашим кадрам при краше без заголовка не работает.
+void wipe_headers() {
+    DWORD old = 0;
+    if (!VirtualProtect(g_self, 0x1000, PAGE_READWRITE, &old)) return;
+    SecureZeroMemory(g_self, 0x1000);
+    VirtualProtect(g_self, 0x1000, old, &old);
+    g_wiped = true;
+}
 
 DWORD WINAPI init(LPVOID) {
     // ждём, пока игра поднимет свои модули
@@ -22,16 +34,18 @@ DWORD WINAPI init(LPVOID) {
     config::load();
     sigs::load();
     render::install();
+    wipe_headers();
 
     while (true) {
         if ((GetAsyncKeyState(VK_END) & 1) != 0) break;   // END — выгрузиться
-        Sleep(50);
+        Sleep(40 + (GetTickCount() & 31));
     }
 
     config::save();
     render::uninstall();
     Sleep(300);
-    FreeLibraryAndExitThread(g_self, 0);
+    // без заголовка LdrUnloadDll не разберёт образ — хуки сняты, модуль остаётся инертным
+    if (!g_wiped) FreeLibraryAndExitThread(g_self, 0);
     return 0;
 }
 
