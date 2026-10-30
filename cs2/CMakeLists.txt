@@ -4,6 +4,10 @@ project(ragemod_cs2 CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# берём интерпретатор через cmake, а не литерал "python3": на msys2 литерал
+# ловит POSIX-python, который давится виндовым путём D:/... от кастом-команды
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 # imgui общий с модулем standoff2, второй копии в репе не держим
 set(IMGUI ${CMAKE_CURRENT_SOURCE_DIR}/../standoff2/third_party/imgui)
 set(FONT_TTF ${CMAKE_CURRENT_SOURCE_DIR}/../standoff2/third_party/font/Roboto-Medium.ttf)
@@ -13,7 +17,7 @@ set(FONT_H ${CMAKE_CURRENT_BINARY_DIR}/generated/roboto_font.h)
 add_custom_command(
     OUTPUT ${FONT_H}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
-    COMMAND python3 ${BIN2H} ${FONT_TTF} ${FONT_H} kFontRoboto
+    COMMAND ${Python3_EXECUTABLE} ${BIN2H} ${FONT_TTF} ${FONT_H} kFontRoboto
     DEPENDS ${FONT_TTF} ${BIN2H}
     COMMENT "font -> roboto_font.h")
 
